@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <!-- [FIX] Thêm viewport meta tag cho responsive trên mobile -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI IDS - Secure Login</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body class="login-container">
+    <!-- 
+        Trang đăng nhập AI Security IDS
+        Lưu ý: Form login hiện chỉ redirect trực tiếp tới dashboard.html
+        (chưa có xác thực thực sự — phù hợp cho demo đồ án)
+    -->
+    <div class="login-box">
+        <div style="font-size: 3rem; margin-bottom: 20px;">🛡️</div>
+        <h2>AI SECURITY IDS</h2>
+        <p style="color: var(--text-muted); margin-bottom: 30px;">Hệ thống phát hiện tấn công mạng AI</p>
+
+        <form action="dashboard.html">
+            <input type="text" placeholder="Username" required value="admin" id="login-username">
+            <input type="password" placeholder="Password" required value="password" id="login-password">
+            <button type="submit" class="btn-primary">TRUY CẬP HỆ THỐNG</button>
+        </form>
+
+        <p style="margin-top: 25px; font-size: 0.8rem; color: var(--text-muted);">
+            Phiên bản đồ án v1.0.2 - Security Lab
+        </p>
+    </div>
+</body>
+
+</html>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Security - Alerts</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <!-- Sidebar navigation -->
+    <div class="sidebar">
+        <div class="sidebar-header">AI-IDS SOC</div>
+        <ul class="nav-links">
+            <li><a href="dashboard.html">📊 Tổng quan Dashboard</a></li>
+            <li><a href="monitor.html">📡 Giám sát thời gian thực</a></li>
+            <li><a href="alerts.html" class="active">⚠️ Quản lý Cảnh báo</a></li>
+            <li><a href="firewall.html">🔥 Cấu hình Firewall</a></li>
+            <li><a href="attack-log.html">📁 Nhật ký Tấn công</a></li>
+        </ul>
+    </div>
+
+    <div class="main-content">
+        <header>
+            <h1>Danh sách Cảnh báo bảo mật</h1>
+        </header>
+
+        <!-- Card thống kê theo mức độ nghiêm trọng -->
+        <div class="stats-grid" style="margin-bottom: 20px;">
+            <div class="card" style="padding: 15px; border-left: 4px solid var(--critical);">
+                <h3>Critical</h3>
+                <div id="count-critical" class="value" style="font-size: 1.5rem;">0</div>
+            </div>
+            <div class="card" style="padding: 15px; border-left: 4px solid var(--high);">
+                <h3>High</h3>
+                <div id="count-high" class="value" style="font-size: 1.5rem;">0</div>
+            </div>
+            <div class="card" style="padding: 15px; border-left: 4px solid var(--medium);">
+                <h3>Medium</h3>
+                <div id="count-medium" class="value" style="font-size: 1.5rem;">0</div>
+            </div>
+            <div class="card" style="padding: 15px; border-left: 4px solid var(--low);">
+                <h3>Low</h3>
+                <div id="count-low" class="value" style="font-size: 1.5rem;">0</div>
+            </div>
+        </div>
+
+        <!-- Bảng danh sách cảnh báo -->
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Thời Gian</th>
+                        <th>Mức Độ</th>
+                        <th>Loại Tấn Công</th>
+                        <th>IP Nguồn</th>
+                        <th>Mức Độ Nguy Hiểm</th>
+                        <th>Hành Động</th>
+                    </tr>
+                </thead>
+                <tbody id="alerts-list-body">
+                    <!-- Data được render bởi alerts.js -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/alerts.js"></script>
+</body>
+
+</html>

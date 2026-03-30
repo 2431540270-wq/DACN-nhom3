@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <!-- [FIX] Thêm viewport meta tag cho responsive -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Security - Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <!-- Sidebar navigation — chung cho tất cả trang -->
+    <div class="sidebar">
+        <div class="sidebar-header">AI-IDS SOC</div>
+        <ul class="nav-links">
+            <li><a href="dashboard.html" class="active">📊 Tổng quan Dashboard</a></li>
+            <li><a href="monitor.html">📡 Giám sát thời gian thực</a></li>
+            <li><a href="alerts.html">⚠️ Quản lý Cảnh báo</a></li>
+            <li><a href="firewall.html">🔥 Cấu hình Firewall</a></li>
+            <li><a href="attack-log.html">📁 Nhật ký Tấn công</a></li>
+        </ul>
+        <div style="margin-top: auto; padding: 20px; font-size: 0.8rem; color: var(--text-muted);">
+            User: <strong>ADMIN</strong><br>
+            Server: <strong>JAVA/AI-BOT</strong>
+        </div>
+    </div>
+
+    <!-- Nội dung chính -->
+    <div class="main-content">
+        <header>
+            <h1>Hệ thống giám sát Tổng quát</h1>
+            <div class="system-status">
+                <span class="status-badge status-online">● Hệ thống AI: Running</span>
+                <span class="status-badge status-online">● Backend: Online</span>
+            </div>
+        </header>
+
+        <!-- Các card thống kê tổng quan -->
+        <div class="stats-grid">
+            <div class="card">
+                <h3>Tổng Log đã phân tích</h3>
+                <div class="value" id="stat-logs">0</div>
+            </div>
+            <div class="card">
+                <h3>Cảnh báo mới (24h)</h3>
+                <div class="value" id="stat-alerts" style="color: var(--high);">0</div>
+            </div>
+            <div class="card">
+                <h3>IP đã chặn</h3>
+                <div class="value" id="stat-blocked" style="color: var(--critical);">0</div>
+            </div>
+            <div class="card">
+                <h3>Điểm rủi ro AI</h3>
+                <div class="value" id="stat-risk">0.0</div>
+            </div>
+        </div>
+
+        <!-- Bảng hoạt động gần đây (từ alerts) -->
+        <h2>Hoạt động gần đây</h2>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>IP Nguồn</th>
+                        <th>Thời Gian</th>
+                        <th>Loại Tấn Công</th>
+                        <th>Risk Score</th>
+                        <th>Trạng Thái</th>
+                    </tr>
+                </thead>
+                <tbody id="recent-list">
+                    <!-- Data được render bởi dashboard.js -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- [QUAN TRỌNG] api.js phải load TRƯỚC dashboard.js
+         vì dashboard.js dùng hàm fetchData() từ api.js -->
+    <script src="js/api.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+
+</html>

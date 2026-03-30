@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Security - Firewall</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <!-- Sidebar navigation -->
+    <div class="sidebar">
+        <div class="sidebar-header">AI-IDS SOC</div>
+        <ul class="nav-links">
+            <li><a href="dashboard.html">📊 Tổng quan Dashboard</a></li>
+            <li><a href="monitor.html">📡 Giám sát thời gian thực</a></li>
+            <li><a href="alerts.html">⚠️ Quản lý Cảnh báo</a></li>
+            <li><a href="firewall.html" class="active">🔥 Cấu hình Firewall</a></li>
+            <li><a href="attack-log.html">📁 Nhật ký Tấn công</a></li>
+        </ul>
+    </div>
+
+    <div class="main-content">
+        <header>
+            <h1>Quản lý Firewall &amp; Block List</h1>
+        </header>
+
+        <!-- Form chặn IP thủ công -->
+        <div class="card"
+            style="margin-bottom: 30px; background: rgba(255, 77, 77, 0.05); border: 1px dashed var(--critical);">
+            <h3>Chặn địa chỉ IP thủ công</h3>
+            <div style="display: flex; gap: 15px; margin-top: 15px;">
+                <input type="text" id="manual-ip" placeholder="Nhập IP (VD: 192.168.1.50)" style="flex: 1;">
+                <select id="manual-reason">
+                    <option value="Manual Block">Thao tác quản trị</option>
+                    <option value="Policy Violation">Vi phạm chính sách</option>
+                    <option value="Suspicious Activity">Hoạt động nghi vấn</option>
+                </select>
+                <button class="btn-danger" onclick="executeBlock()">THỰC THI CHẶN</button>
+            </div>
+        </div>
+
+        <!-- Bảng danh sách IP bị chặn -->
+        <h2>Danh sách IP đang bị chặn</h2>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Địa Chỉ IP</th>
+                        <th>Thời Gian Chặn</th>
+                        <th>Lý Do</th>
+                        <th>Thao Tác</th>
+                    </tr>
+                </thead>
+                <tbody id="firewall-body">
+                    <!-- Data được render bởi firewall.js -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/firewall.js"></script>
+</body>
+
+</html>

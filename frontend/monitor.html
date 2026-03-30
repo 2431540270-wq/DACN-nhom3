@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Security - Real-time Monitor</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <!-- Sidebar navigation -->
+    <div class="sidebar">
+        <div class="sidebar-header">AI-IDS SOC</div>
+        <ul class="nav-links">
+            <li><a href="dashboard.html">📊 Tổng quan Dashboard</a></li>
+            <li><a href="monitor.html" class="active">📡 Giám sát thời gian thực</a></li>
+            <li><a href="alerts.html">⚠️ Quản lý Cảnh báo</a></li>
+            <li><a href="firewall.html">🔥 Cấu hình Firewall</a></li>
+            <li><a href="attack-log.html">📁 Nhật ký Tấn công</a></li>
+        </ul>
+    </div>
+
+    <div class="main-content">
+        <header>
+            <h1>Giám sát lưu lượng mạng thời gian thực</h1>
+            <div class="system-status">
+                <!-- [FIX] Text sẽ được monitor.js cập nhật với thời gian thực -->
+                <span id="update-indicator" class="status-badge"
+                    style="color: var(--accent); border-color: var(--accent);">
+                    ● Đang kết nối...
+                </span>
+            </div>
+        </header>
+
+        <!-- Bảng log real-time — được refresh mỗi 3 giây bởi monitor.js -->
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Thời Gian</th>
+                        <th>Địa Chỉ IP</th>
+                        <th>Hành Động/Lưu Lượng</th>
+                        <th>Risk Score (AI)</th>
+                        <th>Trạng Thái</th>
+                    </tr>
+                </thead>
+                <tbody id="monitor-table-body">
+                    <!-- Data được render bởi monitor.js mỗi 3 giây -->
+                </tbody>
+            </table>
+        </div>
+
+        <div style="margin-top: 20px; color: var(--text-muted); font-size: 0.8rem;">
+            * Ghi chú: Hệ thống tự động phân tích gói tin thông qua AI Security Bot.
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/monitor.js"></script>
+</body>
+
+</html>
