@@ -70,3 +70,53 @@ SELECT * FROM logs ORDER BY timestamp DESC;
 --   1. Thêm MySQL JDBC Driver vào project Java
 --   2. Chạy Main.java → Backend sẽ kết nối DB tự động
 -- ============================================================
+
+-- ============================================================
+-- PHẦN 7: MIGRATION — Thêm cột thiếu vào bảng cũ
+-- ============================================================
+-- Lý do cần phần này:
+--   CREATE TABLE IF NOT EXISTS chỉ tạo bảng nếu CHƯA TỒN TẠI.
+--   Nếu bảng cũ đã tạo trước khi có cột attack_type,
+--   lệnh CREATE TABLE bên trên sẽ bị bỏ qua hoàn toàn.
+--   → Cột attack_type không được thêm → Java INSERT bị lỗi!
+--
+-- Giải pháp: Dùng stored procedure tạm để kiểm tra + thêm cột nếu thiếu.
+-- Chạy phần này 1 lần là đủ. Nếu cột đã tồn tại, không có gì thay đổi.
+
+USE security_logs;
+
+DROP PROCEDURE IF EXISTS add_column_if_missing;
+
+DELIMITER $$
+
+CREATE PROCEDURE add_column_if_missing()
+BEGIN
+    -- Kiểm tra xem cột attack_type đã tồn tại trong bảng logs chưa
+    IF NOT EXISTS (
+        SELECT 1
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'security_logs'
+          AND TABLE_NAME   = 'logs'
+          AND COLUMN_NAME  = 'attack_type'
+    ) THEN
+        -- Cột chưa có → thêm vào
+        ALTER TABLE logs
+            ADD COLUMN attack_type VARCHAR(50) DEFAULT 'NORMAL'
+            AFTER status;
+
+        SELECT 'OK: Đã thêm cột attack_type vào bảng logs' AS migration_result;
+    ELSE
+        SELECT 'SKIP: Cột attack_type đã tồn tại, không cần migration' AS migration_result;
+    END IF;
+END$$
+
+DELIMITER ;
+
+-- Gọi procedure để thực thi migration
+CALL add_column_if_missing();
+
+-- Dọn dẹp procedure tạm sau khi dùng
+DROP PROCEDURE IF EXISTS add_column_if_missing;
+
+-- Kiểm tra lại cấu trúc bảng sau migration
+DESCRIBE logs;

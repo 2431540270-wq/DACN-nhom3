@@ -4,34 +4,34 @@ import java.util.*;
 import model.LogEntry;
 
 /**
- * LogAnalyzer — Phân tích và thống kê log mạng theo action và IP.
- * 
- * Cung cấp 2 chức năng:
- *   - countAction(): Đếm số lần xuất hiện của một action cụ thể theo IP
- *   - sortByIp(): Sắp xếp danh sách log theo địa chỉ IP
- * 
- * Được sử dụng chính bởi SecurityBot để tính Risk Score.
+ * LogAnalyzer — Aggregates log entries by action type and IP address.
+ *
+ * Provides:
+ *   - countAction(): Count occurrences of a specific action grouped by IP
+ *   - sortByIp()   : Sort a list of log entries alphabetically by IP
+ *
+ * Used primarily by SecurityBot to compute per-IP risk scores.
  */
 public class LogAnalyzer {
 
     /**
-     * Đếm số lần xuất hiện của một action cụ thể, nhóm theo IP.
-     * 
-     * Ví dụ: countAction(logs, "LOGIN_FAIL") với dữ liệu:
+     * Counts how many times a specific action appears per IP address.
+     *
+     * Example: countAction(logs, "LOGIN_FAIL") with data:
      *   192.168.1.15 LOGIN_FAIL (x5)
      *   192.168.1.20 LOGIN_FAIL (x2)
-     * → Kết quả: {"192.168.1.15": 5, "192.168.1.20": 2}
+     * → Result: {"192.168.1.15": 5, "192.168.1.20": 2}
      *
-     * @param logs   Danh sách LogEntry cần phân tích
-     * @param action Tên action cần đếm (VD: "LOGIN_FAIL", "REQUEST", "LOGIN_SUCCESS")
-     * @return Map<IP, SốLần> — số lần action xuất hiện cho mỗi IP
+     * @param logs   List of LogEntry to analyze
+     * @param action Action name to count (e.g. "LOGIN_FAIL", "REQUEST", "LOGIN_SUCCESS")
+     * @return Map<IP, Count> — number of times the action appears per IP
      */
     public Map<String, Integer> countAction(List<LogEntry> logs, String action) {
 
         Map<String, Integer> map = new HashMap<>();
 
         for (LogEntry log : logs) {
-            // So sánh action — dùng equals() an toàn (tránh NullPointerException)
+            // Use equals() for null-safe comparison
             if (action.equals(log.getAction())) {
                 String ip = log.getIp();
                 map.put(ip, map.getOrDefault(ip, 0) + 1);
@@ -42,13 +42,12 @@ public class LogAnalyzer {
     }
 
     /**
-     * Sắp xếp danh sách log theo địa chỉ IP (alphabetical).
-     * 
-     * Lưu ý: Method này SẼ THAY ĐỔI list gốc (in-place sort).
-     * Nếu cần giữ list gốc, hãy truyền bản sao.
+     * Sorts a list of log entries in-place by IP address (alphabetical).
      *
-     * @param logs Danh sách LogEntry cần sắp xếp
-     * @return Danh sách đã sắp xếp (cùng reference với input)
+     * Note: This modifies the original list. Pass a copy if the original must be preserved.
+     *
+     * @param logs List of LogEntry to sort
+     * @return The same list, now sorted by IP
      */
     public List<LogEntry> sortByIp(List<LogEntry> logs) {
         logs.sort(Comparator.comparing(LogEntry::getIp));

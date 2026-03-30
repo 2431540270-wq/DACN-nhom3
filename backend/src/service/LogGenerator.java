@@ -1,107 +1,109 @@
 package service;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Random;
 import model.LogEntry;
 import database.LogDAO;
 
 /**
- * LogGenerator — Tạo log giả ngẫu nhiên và lưu vào database.
+ * LogGenerator — Generates random network log entries and saves them to the
+ * database.
  *
- * Chạy vòng lặp vô hạn, mỗi 1 giây tạo 1 log gồm:
- * - IP ngẫu nhiên (IPv4 dải 192.168.1.x)
- * - Action ngẫu nhiên: LOGIN_FAIL, LOGIN_SUCCESS, REQUEST
- * - Status: SUSPICIOUS (nếu LOGIN_FAIL), PASS (còn lại)
- * - AttackType: luôn là NORMAL
+ * Runs an infinite loop every 1 second, producing a log entry with:
+ * - A random IPv4 address
+ * - A random action: LOGIN_FAIL, LOGIN_SUCCESS, or REQUEST
+ * - Status: SUSPICIOUS (for LOGIN_FAIL), PASS (otherwise)
+ * - AttackType: always NORMAL (SecurityBot will update later)
  *
- * Sau khi tạo, gọi LogDAO.insertLog() để lưu vào MySQL.
+ * Each entry is persisted via LogDAO.insertLog().
  */
 public class LogGenerator {
 
-    // Danh sách các action có thể sinh ngẫu nhiên
+    // Possible actions to generate randomly
     private static final String[] ACTIONS = {
             "LOGIN_FAIL",
             "LOGIN_SUCCESS",
             "REQUEST"
     };
 
-    // DAO để ghi log vào database
+    // DAO used to persist log entries to the database
     private LogDAO logDAO = new LogDAO();
 
-    // Random dùng chung để sinh số ngẫu nhiên
+    // Shared random number generator
     private Random random = new Random();
 
     /**
-     * Vòng lặp chính: tạo log → lưu DB → in console → sleep 2 giây.
-     * Chạy mãi mãi cho đến khi chương trình bị dừng.
+     * Main loop: generate → save to DB → print to console → sleep 1 second.
+     * Runs indefinitely until the thread is interrupted.
      */
     public void startGenerating() {
-        System.out.println("[LogGenerator] Bắt đầu sinh log...");
+        System.out.println("[LogGenerator] Started generating logs...");
 
         while (true) {
             try {
-                // === Bước 1: Sinh dữ liệu ngẫu nhiên ===
-                String ip = randomIP(); // VD: 192.168.1.42
-                String action = randomAction(); // VD: LOGIN_FAIL
-                String time = LocalDateTime.now().toString().replace("T", " ");
-                String status = mapStatus(action); // VD: SUSPICIOUS
-                String attackType = "NORMAL"; // Luôn là NORMAL
+                // Step 1: Generate random data
+                String ip = randomIP();
+                String action = randomAction();
+                // Use MySQL-compatible DATETIME format: 'yyyy-MM-dd HH:mm:ss'
+                String time = LocalDateTime.now()
+                        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                String status = mapStatus(action);
+                String attackType = "NORMAL";
 
-                // === Bước 2: Tạo LogEntry với constructor (time, ip, action) ===
+                // Step 2: Build LogEntry using the 3-argument constructor
                 LogEntry log = new LogEntry(time, ip, action);
 
-                // === Bước 3: Gán thêm status và attackType ===
+                // Step 3: Assign status and attackType
                 log.setStatus(status);
                 log.setAttackType(attackType);
 
-                // === Bước 4: Lưu vào database thông qua LogDAO ===
+                // Step 4: Persist to database
                 logDAO.insertLog(log);
 
-                // === Bước 5: In ra console để theo dõi ===
+                // Step 5: Print to console for monitoring
                 System.out.println("[LOG] " + ip + " - " + action + " - " + status);
 
-                // === Nghỉ 1 giây trước khi tạo log tiếp ===
+                // Sleep 1 second before generating the next log
                 Thread.sleep(1000);
 
             } catch (InterruptedException e) {
-                // Xử lý khi thread bị interrupt (dừng chương trình)
-                System.err.println("[LogGenerator] Đã dừng sinh log.");
+                System.err.println("[LogGenerator] Stopped.");
                 break;
             }
         }
     }
 
     /**
-     * Sinh địa chỉ IP ngẫu nhiên dạng 192.168.1.x (x từ 1 đến 254).
+     * Generates a random IPv4 address (all octets 0–255).
      *
-     * @return Địa chỉ IPv4 ngẫu nhiên
+     * @return Random IPv4 string
      */
     private String randomIP() {
-        // Tạo 4 octet ngẫu nhiên cho địa chỉ IP
-        int a = random.nextInt(256); // 0-255
-        int b = random.nextInt(256); // 0-255
-        int c = random.nextInt(256); // 0-255
-        int d = random.nextInt(256); // 0-255
+        int a = random.nextInt(256);
+        int b = random.nextInt(256);
+        int c = random.nextInt(256);
+        int d = random.nextInt(256);
         return a + "." + b + "." + c + "." + d;
     }
 
     /**
-     * Chọn ngẫu nhiên 1 action từ danh sách ACTIONS.
+     * Picks a random action from the ACTIONS array.
      *
-     * @return LOGIN_FAIL, LOGIN_SUCCESS hoặc REQUEST
+     * @return "LOGIN_FAIL", "LOGIN_SUCCESS", or "REQUEST"
      */
     private String randomAction() {
         return ACTIONS[random.nextInt(ACTIONS.length)];
     }
 
     /**
-     * Mapping action → status theo quy tắc:
-     * LOGIN_FAIL → SUSPICIOUS (đáng ngờ)
-     * LOGIN_SUCCESS → PASS (bình thường)
-     * REQUEST → PASS (bình thường)
+     * Maps an action to a status:
+     * LOGIN_FAIL → SUSPICIOUS
+     * LOGIN_SUCCESS → PASS
+     * REQUEST → PASS
      *
-     * @param action Loại action
-     * @return Status tương ứng
+     * @param action The action string
+     * @return Corresponding status string
      */
     private String mapStatus(String action) {
         if ("LOGIN_FAIL".equals(action)) {

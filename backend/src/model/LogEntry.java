@@ -1,51 +1,51 @@
 package model;
 
 /**
- * LogEntry — Model đại diện cho một dòng log mạng.
- * 
- * Chứa thông tin:
- * - time: Timestamp khi đọc log
- * - ip: Địa chỉ IP nguồn
- * - action: Hành động (LOGIN_FAIL, LOGIN_SUCCESS, REQUEST)
- * - score: Điểm rủi ro do SecurityBot tính (0-100, default: 0)
- * - status: Trạng thái (PASS, SUSPICIOUS, MONITORING, BLOCKED)
- * - attackType: Loại tấn công (NORMAL, BRUTE_FORCE, REQUEST_FLOOD)
- * 
- * score, status, attackType được SecurityBot gán SAU KHI phân tích.
+ * LogEntry — Model representing a single network log event.
+ *
+ * Fields:
+ *   - time       : Timestamp when the event was recorded
+ *   - ip         : Source IP address
+ *   - action     : Event type (LOGIN_FAIL, LOGIN_SUCCESS, REQUEST)
+ *   - score      : Risk score computed by SecurityBot (0–100, default 0)
+ *   - status     : Status label (PASS, SUSPICIOUS, MONITORING, BLOCKED)
+ *   - attackType : Attack classification (NORMAL, BRUTE_FORCE, REQUEST_FLOOD)
+ *
+ * score, status, and attackType are assigned by SecurityBot AFTER analysis.
  */
 public class LogEntry {
 
-    /** ID trong database (0 nếu chưa lưu vào DB) */
+    /** Database row ID (0 if not yet persisted) */
     private int id;
 
-    /** Timestamp khi đọc log */
+    /** Timestamp of the log event */
     private String time;
 
-    /** Địa chỉ IP nguồn */
+    /** Source IP address */
     private String ip;
 
-    /** Hành động ghi nhận (LOGIN_FAIL, LOGIN_SUCCESS, REQUEST) */
+    /** Recorded action (LOGIN_FAIL, LOGIN_SUCCESS, REQUEST) */
     private String action;
 
-    /** Điểm rủi ro (0-100), do SecurityBot tính — default: 0 */
+    /** Risk score (0–100); computed by SecurityBot — default: 0 */
     private int score;
 
-    /** Trạng thái sau phân tích — default: "PASS" */
+    /** Status after analysis — default: "PASS" */
     private String status;
 
-    /** Loại tấn công được phát hiện — default: "NORMAL" */
+    /** Detected attack type — default: "NORMAL" */
     private String attackType;
 
-    /** Mô tả chi tiết (từ database, có thể null) */
+    /** Optional detailed description (from database, may be null) */
     private String description;
 
     /**
-     * Khởi tạo LogEntry với dữ liệu cơ bản từ file log.
-     * Các trường score/status/attackType sẽ được SecurityBot cập nhật sau.
+     * Creates a LogEntry with basic data from a log file or generator.
+     * score / status / attackType will be set by SecurityBot later.
      *
-     * @param time   Timestamp (ISO format)
-     * @param ip     Địa chỉ IP nguồn (VD: "192.168.1.15")
-     * @param action Hành động (VD: "LOGIN_FAIL")
+     * @param time   Timestamp (e.g. ISO format or "HH:mm:ss")
+     * @param ip     Source IP address (e.g. "192.168.1.15")
+     * @param action Event type (e.g. "LOGIN_FAIL")
      */
     public LogEntry(String time, String ip, String action) {
         this.time = time;
@@ -58,101 +58,49 @@ public class LogEntry {
 
     // ===================== GETTERS =====================
 
-    /** @return ID trong database */
-    public int getId() {
-        return id;
-    }
+    /** @return Database row ID */
+    public int getId() { return id; }
 
-    /**
-     * @return Timestamp của log entry
-     */
-    public String getTime() {
-        return time;
-    }
+    /** @return Timestamp string */
+    public String getTime() { return time; }
 
-    /**
-     * @return Địa chỉ IP nguồn
-     */
-    public String getIp() {
-        return ip;
-    }
+    /** @return Source IP address */
+    public String getIp() { return ip; }
 
-    /**
-     * @return Hành động ghi nhận (LOGIN_FAIL, LOGIN_SUCCESS, REQUEST)
-     */
-    public String getAction() {
-        return action;
-    }
+    /** @return Action type (LOGIN_FAIL / LOGIN_SUCCESS / REQUEST) */
+    public String getAction() { return action; }
 
-    /**
-     * @return Điểm rủi ro (0-100)
-     */
-    public int getScore() {
-        return score;
-    }
+    /** @return Risk score (0–100) */
+    public int getScore() { return score; }
 
-    /**
-     * @return Trạng thái hiện tại (PASS, SUSPICIOUS, MONITORING, BLOCKED)
-     */
-    public String getStatus() {
-        return status;
-    }
+    /** @return Current status (PASS / SUSPICIOUS / MONITORING / BLOCKED) */
+    public String getStatus() { return status; }
 
-    /**
-     * @return Loại tấn công (NORMAL, BRUTE_FORCE, REQUEST_FLOOD)
-     */
-    public String getAttackType() {
-        return attackType;
-    }
+    /** @return Detected attack type (NORMAL / BRUTE_FORCE / REQUEST_FLOOD) */
+    public String getAttackType() { return attackType; }
 
-    /** @return Mô tả chi tiết */
-    public String getDescription() {
-        return description;
-    }
+    /** @return Optional description (may be null) */
+    public String getDescription() { return description; }
 
     // ===================== SETTERS =====================
 
-    /**
-     * Cập nhật điểm rủi ro (được gọi bởi SecurityBot).
-     *
-     * @param score Điểm rủi ro mới (0-100)
-     */
-    public void setScore(int score) {
-        this.score = score;
-    }
+    /** Sets the risk score (called by SecurityBot). */
+    public void setScore(int score) { this.score = score; }
+
+    /** Sets the status label (called by SecurityBot). */
+    public void setStatus(String status) { this.status = status; }
+
+    /** Sets the attack type (called by SecurityBot). */
+    public void setAttackType(String attackType) { this.attackType = attackType; }
+
+    /** Sets the database row ID. */
+    public void setId(int id) { this.id = id; }
+
+    /** Sets the optional description. */
+    public void setDescription(String description) { this.description = description; }
 
     /**
-     * Cập nhật trạng thái (được gọi bởi SecurityBot).
-     *
-     * @param status Trạng thái mới (PASS/SUSPICIOUS/MONITORING/BLOCKED)
-     */
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    /**
-     * Cập nhật loại tấn công (được gọi bởi SecurityBot).
-     *
-     * @param attackType Loại tấn công (NORMAL/BRUTE_FORCE/REQUEST_FLOOD)
-     */
-    public void setAttackType(String attackType) {
-        this.attackType = attackType;
-    }
-
-    /** Gán ID database */
-    public void setId(int id) {
-        this.id = id;
-    }
-
-    /** Gán mô tả chi tiết */
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    /**
-     * Biểu diễn dạng chuỗi để debug.
-     *
-     * @return Chuỗi mô tả LogEntry
+     * Returns a string representation for debugging.
      */
     @Override
     public String toString() {

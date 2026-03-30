@@ -2,65 +2,68 @@ package database;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 
 /**
- * DatabaseConnection — Quản lý kết nối đến MySQL Database.
+ * DatabaseConnection — Manages JDBC connections to MySQL.
  *
- * Cách hoạt động:
- * - Dùng JDBC (Java Database Connectivity) để kết nối MySQL
- * - Gọi getConnection() để lấy 1 Connection object
- * - Connection này sau đó được LogDAO dùng để chạy SQL query
+ * Usage:
+ *   - Call getConnection() to obtain a new Connection object.
+ *   - The caller (LogDAO) is responsible for closing the connection when done.
  *
- * Yêu cầu:
- * - MySQL Server phải đang chạy trên localhost:3306
- * - Database "security_logs" phải đã được tạo (chạy setup.sql)
- * - File mysql-connector-j-x.x.x.jar phải nằm trong Build Path
+ * Requirements:
+ *   - MySQL Server must be running on localhost:3306
+ *   - Database "security_logs" must exist (run database/setup.sql)
+ *   - mysql-connector-j-x.x.x.jar must be on the Build Path
  */
 public class DatabaseConnection {
 
-    // ===== CẤU HÌNH KẾT NỐI =====
-    // Sửa các giá trị này cho phù hợp với máy của bạn
+    // ===== CONNECTION CONFIG =====
+    // Adjust these values to match your local environment
 
-    /** Địa chỉ MySQL Server (mặc định localhost, port 3306) */
+    /** MySQL Server URL */
     private static final String URL = "jdbc:mysql://localhost:3306/security_logs"
-            + "?useSSL=false" // Tắt SSL (dev local không cần)
-            + "&allowPublicKeyRetrieval=true" // Cho phép lấy public key
-            + "&serverTimezone=Asia/Ho_Chi_Minh" // Múi giờ Việt Nam
-            + "&characterEncoding=UTF-8"; // Hỗ trợ tiếng Việt
+            + "?useSSL=false"
+            + "&allowPublicKeyRetrieval=true"
+            + "&serverTimezone=Asia/Ho_Chi_Minh"
+            + "&characterEncoding=UTF-8";
 
-    /** Tên đăng nhập MySQL (mặc định là root) */
+    /** MySQL username */
     private static final String USER = "root";
 
     /**
-     * Mật khẩu MySQL.
-     * THAY ĐỔI GIÁ TRỊ NÀY cho đúng mật khẩu MySQL trên máy bạn!
-     * Ví dụ: "" (rỗng), "1234", "password"...
+     * MySQL password.
+     * CHANGE THIS to match the password on your machine.
      */
     private static final String PASSWORD = "Phungvanvo358pvv@#";
 
-    /** Biến theo dõi trạng thái kết nối (để tránh in log lặp) */
+    /** Tracks whether the connection has been tested (to avoid repeat attempts) */
     private static boolean connectionTested = false;
     private static boolean isAvailable = false;
 
+    /** Throttle DB ping: only re-check every 30 seconds, not on every API call */
+    private static long lastPingTime = 0;
+    private static final long PING_INTERVAL_MS = 30_000;
+
     /**
-     * Lấy một Connection mới đến MySQL Database.
+     * Opens and returns a new MySQL connection.
      *
-     * Mỗi lần gọi sẽ tạo 1 connection mới.
-     * Caller (LogDAO) có trách nhiệm đóng connection sau khi dùng xong.
+     * A new connection is created on each call.
+     * The caller must close it (best done with try-with-resources).
      *
-     * @return Connection object nếu thành công
-     * @throws SQLException nếu không kết nối được
+     * @return Connection object
+     * @throws SQLException if the connection cannot be established
      */
     public static Connection getConnection() throws SQLException {
         return DriverManager.getConnection(URL, USER, PASSWORD);
     }
 
     /**
-     * Kiểm tra xem Database có khả dụng không.
-     * Thử kết nối 1 lần, ghi nhớ kết quả.
+     * Tests the database connection once and caches the result.
      *
-     * @return true nếu kết nối MySQL thành công
+     * @return true if MySQL is reachable, false otherwise
      */
     public static boolean testConnection() {
         if (connectionTested) {
@@ -70,39 +73,119 @@ public class DatabaseConnection {
         connectionTested = true;
 
         try {
-            // Nạp MySQL JDBC Driver vào bộ nhớ
+            // Load the MySQL JDBC driver
             Class.forName("com.mysql.cj.jdbc.Driver");
 
-            // Thử kết nối
+            // Attempt a connection
             Connection conn = getConnection();
             conn.close();
 
             isAvailable = true;
-            System.out.println("   [Database] Kết nối MySQL thành công!");
+            System.out.println("   [Database] MySQL connection successful!");
             System.out.println("   URL: " + URL);
+
+            // Auto-migrate: ensure all required columns exist.
+            // Fixes: "Unknown column 'attack_type' in 'field list'" on old databases.
+            ensureSchema();
+
             return true;
 
         } catch (ClassNotFoundException e) {
-            System.err.println("   [Database] Thiếu MySQL JDBC Driver!");
-            System.err.println("   → Tải mysql-connector-j từ https://dev.mysql.com/downloads/connector/j/");
-            System.err.println("   → Thêm file .jar vào Build Path trong Eclipse");
+            System.err.println("   [Database] MySQL JDBC Driver not found!");
+            System.err.println("   -> Download mysql-connector-j from https://dev.mysql.com/downloads/connector/j/");
+            System.err.println("   -> Add the .jar file to the Build Path in Eclipse");
             isAvailable = false;
             return false;
 
         } catch (SQLException e) {
-            System.err.println("   [Database] Không kết nối được MySQL!");
-            System.err.println("   → Kiểm tra MySQL Server có đang chạy không");
-            System.err.println("   → Kiểm tra username/password trong DatabaseConnection.java");
-            System.err.println("   → Lỗi: " + e.getMessage());
+            System.err.println("   [Database] Cannot connect to MySQL!");
+            System.err.println("   -> Check that MySQL Server is running");
+            System.err.println("   -> Verify username/password in DatabaseConnection.java");
+            System.err.println("   -> Error: " + e.getMessage());
             isAvailable = false;
             return false;
         }
     }
 
     /**
-     * Kiểm tra nhanh database có khả dụng không (không thử lại).
+     * Ensures the 'logs' table has all required columns.
+     * Runs on every startup after a successful connection.
+     *
+     * Fixes: "[DB] INSERT error: Unknown column 'attack_type' in 'field list'"
+     * which occurs when the table was created before the attack_type column was added.
+     *
+     * Safe to call multiple times — uses INFORMATION_SCHEMA to skip existing columns.
      */
-    public static boolean isAvailable() {
-        return isAvailable;
+    private static void ensureSchema() {
+        String[][] columnsToAdd = {
+            // { column_name, ALTER TABLE SQL }
+            { "attack_type",
+              "ALTER TABLE logs ADD COLUMN attack_type VARCHAR(50) NOT NULL DEFAULT 'NORMAL' AFTER status" },
+            { "description",
+              "ALTER TABLE logs ADD COLUMN description TEXT AFTER attack_type" }
+        };
+
+        try (Connection conn = getConnection();
+             Statement stmt = conn.createStatement()) {
+
+            for (String[] col : columnsToAdd) {
+                String colName = col[0];
+                String alterSql = col[1];
+
+                // Check if column already exists in INFORMATION_SCHEMA
+                String checkSql = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS "
+                        + "WHERE TABLE_SCHEMA = DATABASE() "
+                        + "AND TABLE_NAME = 'logs' "
+                        + "AND COLUMN_NAME = '" + colName + "'";
+
+                try (ResultSet rs = stmt.executeQuery(checkSql)) {
+                    if (rs.next() && rs.getInt(1) == 0) {
+                        // Column missing — add it
+                        stmt.executeUpdate(alterSql);
+                        System.out.println("   [Schema] Added missing column: " + colName);
+                    } else {
+                        System.out.println("   [Schema] Column OK: " + colName);
+                    }
+                }
+            }
+
+        } catch (SQLException e) {
+            System.err.println("   [Schema] Migration error (non-fatal): " + e.getMessage());
+            // Non-fatal: system continues even if migration fails.
+            // User can manually run database/migrate.sql to fix.
+        }
+    }
+
+    /**
+     * Returns whether the database is currently reachable.
+     *
+     * Uses throttled ping: only opens a real connection every PING_INTERVAL_MS (30s).
+     * Between pings, returns the cached value to avoid flooding the DB with connections
+     * when API endpoints call isAvailable() on every request.
+     *
+     * If the ping fails, isAvailable is set to false and the next call will return false
+     * immediately (without another ping attempt) until testConnection() is called again.
+     */
+    public static synchronized boolean isAvailable() {
+        // If never connected — fast fail, no ping needed
+        if (!isAvailable) return false;
+
+        long now = System.currentTimeMillis();
+
+        // Within the throttle window — return cached result
+        if (now - lastPingTime < PING_INTERVAL_MS) {
+            return isAvailable;
+        }
+
+        // Throttle window expired — perform a real lightweight ping
+        lastPingTime = now;
+        try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD)) {
+            isAvailable = conn.isValid(2); // 2-second ping timeout
+            return isAvailable;
+        } catch (SQLException e) {
+            isAvailable = false;
+            System.err.println("[Database] Connection lost: " + e.getMessage());
+            return false;
+        }
     }
 }

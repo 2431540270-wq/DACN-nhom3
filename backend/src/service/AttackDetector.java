@@ -4,37 +4,37 @@ import alert.AlertSystem;
 import java.util.*;
 
 /**
- * AttackDetector — Phát hiện tấn công mạng dựa trên ngưỡng.
- * 
- * Phát hiện 2 loại tấn công:
- *   - BRUTE_FORCE: IP có >= 5 lần LOGIN_FAIL
- *   - REQUEST_FLOOD: IP có >= 10 lần REQUEST
- * 
- * Lưu ý: Class này hiện CHƯA ĐƯỢC SỬ DỤNG trong luồng chính.
- * Logic detect đã được tích hợp trực tiếp trong SecurityBot
- * với ngưỡng khác (BRUTE_FORCE >= 5, REQUEST_FLOOD >= 20).
- * Giữ lại để có thể sử dụng khi cần tách logic.
+ * AttackDetector — Detects network attacks based on configurable thresholds.
+ *
+ * Detects two attack types:
+ *   - BRUTE_FORCE   : IP with >= 5 LOGIN_FAIL events
+ *   - REQUEST_FLOOD : IP with >= 10 REQUEST events
+ *
+ * Note: This class is currently NOT used in the main flow.
+ * Equivalent logic (with different thresholds: BRUTE_FORCE >= 5, REQUEST_FLOOD >= 20)
+ * is embedded directly in SecurityBot.
+ * Kept here for future use when decoupling detection logic.
  */
 public class AttackDetector {
 
-    /** Ngưỡng LOGIN_FAIL để coi là brute force */
+    /** Minimum LOGIN_FAIL count to classify as brute force */
     private static final int LOGIN_FAIL_THRESHOLD = 5;
 
-    /** Ngưỡng REQUEST để coi là request flood */
+    /** Minimum REQUEST count to classify as request flood */
     private static final int REQUEST_THRESHOLD = 10;
 
     /**
-     * Phát hiện tấn công dựa trên bản đồ LOGIN_FAIL và REQUEST theo IP.
-     * 
-     * Quy trình:
-     *   1. Duyệt loginFailMap — nếu count >= 5 → đánh dấu BRUTE_FORCE
-     *   2. Duyệt requestMap — nếu count >= 10 → đánh dấu REQUEST_FLOOD
-     *   3. Gửi cảnh báo qua AlertSystem cho mỗi IP bị phát hiện
+     * Scans loginFailMap and requestMap for suspicious IPs.
      *
-     * @param loginFailMap Map<IP, SốLầnFail> từ LogAnalyzer
-     * @param requestMap   Map<IP, SốLầnRequest> từ LogAnalyzer
-     * @param alert        AlertSystem để ghi cảnh báo
-     * @return Map<IP, LoạiTấnCông> danh sách IP bị phát hiện tấn công
+     * Steps:
+     *   1. Iterate loginFailMap — if count >= 5 → mark as BRUTE_FORCE
+     *   2. Iterate requestMap   — if count >= 10 → mark as REQUEST_FLOOD
+     *   3. Send an alert via AlertSystem for each detected IP
+     *
+     * @param loginFailMap Map<IP, FailCount>    from LogAnalyzer
+     * @param requestMap   Map<IP, RequestCount> from LogAnalyzer
+     * @param alert        AlertSystem to emit warnings
+     * @return Map<IP, AttackType> of all detected IPs
      */
     public Map<String, String> detect(
             Map<String, Integer> loginFailMap,
@@ -43,34 +43,24 @@ public class AttackDetector {
 
         Map<String, String> detected = new HashMap<>();
 
-        // Phát hiện Brute Force — >= 5 lần LOGIN_FAIL từ cùng IP
+        // Detect Brute Force — >= 5 LOGIN_FAIL from the same IP
         for (String ip : loginFailMap.keySet()) {
-
             int count = loginFailMap.get(ip);
-
             if (count >= LOGIN_FAIL_THRESHOLD) {
-
-                String attackType = "BRUTE_FORCE";
-                detected.put(ip, attackType);
-
+                detected.put(ip, "BRUTE_FORCE");
                 String msg = "🚨 IP " + ip
-                        + " nghi ngờ BRUTE FORCE (" + count + " LOGIN_FAIL)";
+                        + " suspected BRUTE_FORCE (" + count + " LOGIN_FAIL)";
                 alert.addAlert(msg);
             }
         }
 
-        // Phát hiện Request Flood — >= 10 lần REQUEST từ cùng IP
+        // Detect Request Flood — >= 10 REQUEST from the same IP
         for (String ip : requestMap.keySet()) {
-
             int count = requestMap.get(ip);
-
             if (count >= REQUEST_THRESHOLD) {
-
-                String attackType = "REQUEST_FLOOD";
-                detected.put(ip, attackType);
-
+                detected.put(ip, "REQUEST_FLOOD");
                 String msg = "⚠ IP " + ip
-                        + " gửi REQUEST bất thường (" + count + " lần)";
+                        + " abnormal REQUEST volume (" + count + " requests)";
                 alert.addAlert(msg);
             }
         }

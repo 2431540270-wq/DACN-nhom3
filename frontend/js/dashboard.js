@@ -81,7 +81,7 @@ async function loadLogs() {
         suspiciousLogs.forEach(item => {
             const status = item.status || 'PASS';
             const ip = item.ip || 'N/A';
-            const attack = item.attack || item.attackType || item.action || 'UNKNOWN';
+            const attack = item.attack || item.action || 'UNKNOWN'; // API trả về "attack", fallback action
             const score = item.score || 0;
             const time = item.time || '-';
 

@@ -16,19 +16,21 @@ import database.DatabaseConnection;
 import database.LogDAO;
 
 /**
- * ApiServer — Máy chủ API phục vụ Frontend.
+ * ApiServer — HTTP API server that serves data to the frontend.
  *
  * Port: 8080 (http://localhost:8080)
  *
- * [UPGRADE] Hỗ trợ 2 nguồn dữ liệu:
- * - Ưu tiên 1: MySQL Database (qua LogDAO)
- * - Ưu tiên 2: File text (qua LogReader) — fallback nếu DB chết
+ * Data source priority:
+ *   1. MySQL Database (via LogDAO)   — preferred
+ *   2. Text file (via LogReader)      — fallback if DB is unavailable
  *
  * Endpoints:
- * GET /api/analyze — Phân tích log, tính risk score
- * GET /api/logs — Lấy 100 dòng log mới nhất
- * GET /api/alerts — Lấy danh sách cảnh báo
- * GET /api/blocked — Lấy danh sách IP bị chặn
+ *   GET  /api/analyze  — Analyze logs, compute risk scores
+ *   GET  /api/logs     — Retrieve the 100 most recent log entries
+ *   GET  /api/alerts   — Retrieve the current alert list
+ *   GET  /api/blocked  — Retrieve the list of blocked IPs
+ *   POST /api/block    — Manually block an IP
+ *   POST /api/unblock  — Manually unblock an IP
  */
 public class ApiServer {
 
@@ -36,14 +38,14 @@ public class ApiServer {
     private static AlertSystem alertSystem;
     private static SecurityBot bot;
     private static LogDAO logDAO = new LogDAO();
-    // [FIX LỖI 1+2] Đã xóa field logGenerator static — LogGenerator được khởi động
-    // duy nhất 1 lần từ Main.java. Giữ 2 instance sẽ gây duplicate insert vào DB.
+    // NOTE: LogGenerator is started once from Main.java.
+    // Do NOT instantiate it here — doing so causes duplicate DB inserts.
 
     /**
-     * Khởi tạo API Server.
+     * Starts the HTTP API server.
      *
-     * @param sharedBot         SecurityBot dùng chung
-     * @param sharedAlertSystem AlertSystem dùng chung
+     * @param sharedBot         Shared SecurityBot instance
+     * @param sharedAlertSystem Shared AlertSystem instance
      */
     public static void startServer(SecurityBot sharedBot, AlertSystem sharedAlertSystem) throws Exception {
 
@@ -53,48 +55,40 @@ public class ApiServer {
         HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
 
         // ============================================================
-        // API 1: PHÂN TÍCH LOG (GET /api/analyze)
+        // ENDPOINT 1: GET /api/analyze
         // ============================================================
         server.createContext("/api/analyze", (HttpExchange exchange) -> {
             try {
-                if (handleCors(exchange))
-                    return;
+                if (handleCors(exchange)) return;
 
-                // ƯU TIÊN 1: Đọc từ Database
+                // Priority 1: read from database
                 if (DatabaseConnection.isAvailable()) {
                     logs = logDAO.getAllLogs();
-                    System.out.println("[API /analyze] Đọc từ DATABASE: " + logs.size() + " dòng");
+                    System.out.println("[API /analyze] Source: DATABASE — " + logs.size() + " row(s)");
                 } else {
-                    // FALLBACK: Đọc từ file text
+                    // Fallback: read from text file
                     LogReader reader = new LogReader();
                     logs = reader.readLog("logs/network.log");
-                    if (logs == null)
-                        logs = new ArrayList<>();
-                    System.out.println("[API /analyze] Đọc từ FILE: " + logs.size() + " dòng");
+                    if (logs == null) logs = new ArrayList<>();
+                    System.out.println("[API /analyze] Source: FILE — " + logs.size() + " row(s)");
                 }
 
-                // [FIX LỖI 7] Không clear toàn bộ alerts — chỉ re-analyze để update trạng thái
-                // clearAlerts() sẽ làm mất hết alert cũ mỗi giây — giữ lại,
-                // SecurityBot.analyze()
-                // sẽ tự thêm alert mới vào list
+                // Run SecurityBot analysis (adds new alerts; does NOT clear old ones)
                 bot.analyze(logs, alertSystem);
 
-                // [FIX LỖI 3] ĐÃ XÓA logDAO.insertLogs(logs) TẠI ĐÂY
-                // LogGenerator đã responsible cho việc insert log mỗi giây.
-                // Nếu insert thêm ở đây → mỗi lần /analyze call sẽ duplicate toàn bộ 100 bản
-                // ghi vào DB!
+                // Persist updated attack_type/status back to DB so that
+                // the next /api/logs call returns the analysed values, not stale "NORMAL".
+                if (DatabaseConnection.isAvailable()) {
+                    logDAO.updateLogs(logs);
+                }
 
-                // [FIX LỖI 6] Tách biệt totalLogs (để hiển thị) vs tính riskAvg
-                // totalLogs = tổng số log trong DB (chính xác)
-                // riskAvg = trung bình score của 100 bản ghi đọc được (tính được)
+                // Use DB total count for the response (more accurate than logs.size())
                 int displayTotal = logs.size();
                 double riskAvg = 0;
 
-                // Nếu có DB, lấy tổng count thật từ DB
                 if (DatabaseConnection.isAvailable()) {
                     int dbCount = logDAO.getLogCount();
-                    if (dbCount > displayTotal)
-                        displayTotal = dbCount;
+                    if (dbCount > displayTotal) displayTotal = dbCount;
                 }
 
                 if (!logs.isEmpty()) {
@@ -102,13 +96,11 @@ public class ApiServer {
                     for (LogEntry l : logs) {
                         totalRisk += l.getScore();
                     }
-                    // Chia cho logs.size() (100 bản ghi), KHÔNG chia cho displayTotal
+                    // Average over the loaded sample (100 rows), not over all DB rows
                     riskAvg = Math.round((double) totalRisk / logs.size() * 10.0) / 10.0;
                 }
 
-                // Dùng displayTotal (tổng DB) cho JSON response, không phải logs.size()
                 int totalLogs = displayTotal;
-
                 String response = "{\"status\":\"analyzed\",\"totalLogs\":" + totalLogs
                         + ",\"riskAvg\":" + riskAvg + "}";
 
@@ -122,14 +114,13 @@ public class ApiServer {
         });
 
         // ============================================================
-        // API 2: LẤY LOGS (GET /api/logs)
+        // ENDPOINT 2: GET /api/logs
         // ============================================================
         server.createContext("/api/logs", (HttpExchange exchange) -> {
             try {
-                if (handleCors(exchange))
-                    return;
+                if (handleCors(exchange)) return;
 
-                // ƯU TIÊN: Đọc từ Database nếu có
+                // Prefer database; fall back to the last in-memory list
                 List<LogEntry> logsToSend = logs;
                 if (DatabaseConnection.isAvailable()) {
                     List<LogEntry> dbLogs = logDAO.getAllLogs();
@@ -151,12 +142,11 @@ public class ApiServer {
                             .append("\"score\":").append(l.getScore()).append(",")
                             .append("\"status\":\"").append(escapeJson(l.getStatus())).append("\"")
                             .append("}");
-                    if (i < limit - 1)
-                        json.append(",");
+                    if (i < limit - 1) json.append(",");
                 }
                 json.append("]");
 
-                System.out.println("[API /logs] Trả về " + limit + " dòng");
+                System.out.println("[API /logs] Returning " + limit + " row(s)");
                 sendJson(exchange, json.toString());
 
             } catch (Exception e) {
@@ -166,42 +156,36 @@ public class ApiServer {
         });
 
         // ============================================================
-        // API 3: LẤY ALERTS (GET /api/alerts)
+        // ENDPOINT 3: GET /api/alerts
         // ============================================================
         server.createContext("/api/alerts", (HttpExchange exchange) -> {
             try {
-                if (handleCors(exchange))
-                    return;
+                if (handleCors(exchange)) return;
 
                 List<String> alerts = alertSystem.getAlerts();
-                System.out.println("[API /alerts] Có " + alerts.size() + " cảnh báo");
+                System.out.println("[API /alerts] " + alerts.size() + " alert(s)");
 
                 StringBuilder json = new StringBuilder("[");
                 for (int i = 0; i < alerts.size(); i++) {
                     String alert = alerts.get(i);
 
-                    String level = "LOW";
+                    String level  = "LOW";
                     String attack = "UNKNOWN";
-                    String ip = "0.0.0.0";
-                    int score = 10;
+                    String ip     = "0.0.0.0";
+                    int score     = 10;
 
                     if (alert.contains("🚨")) {
-                        level = "CRITICAL";
-                        score = 90;
+                        level = "CRITICAL"; score = 90;
                     } else if (alert.contains("🔴")) {
-                        level = "HIGH";
-                        score = 70;
+                        level = "HIGH"; score = 70;
                     } else if (alert.contains("⚠")) {
-                        level = "MEDIUM";
-                        score = 50;
+                        level = "MEDIUM"; score = 50;
                     }
 
-                    if (alert.contains("BRUTE_FORCE"))
-                        attack = "BRUTE_FORCE";
-                    else if (alert.contains("REQUEST_FLOOD"))
-                        attack = "REQUEST_FLOOD";
+                    if (alert.contains("BRUTE_FORCE"))      attack = "BRUTE_FORCE";
+                    else if (alert.contains("REQUEST_FLOOD")) attack = "REQUEST_FLOOD";
 
-                    // Tìm IP bằng regex
+                    // Extract IP using simple token scan
                     String[] parts = alert.split(" ");
                     for (String p : parts) {
                         if (p.matches("\\d+\\.\\d+\\.\\d+\\.\\d+")) {
@@ -209,11 +193,11 @@ public class ApiServer {
                         }
                     }
 
-                    // Lấy thời gian giữa [ và ]
+                    // Extract timestamp between [ and ]
                     String time = "";
                     if (alert.contains("]")) {
                         int startIdx = alert.indexOf("[");
-                        int endIdx = alert.indexOf("]");
+                        int endIdx   = alert.indexOf("]");
                         if (startIdx >= 0 && endIdx > startIdx) {
                             time = alert.substring(startIdx + 1, endIdx);
                         }
@@ -227,8 +211,7 @@ public class ApiServer {
                             .append("\"score\":").append(score)
                             .append("}");
 
-                    if (i < alerts.size() - 1)
-                        json.append(",");
+                    if (i < alerts.size() - 1) json.append(",");
                 }
                 json.append("]");
 
@@ -241,25 +224,22 @@ public class ApiServer {
         });
 
         // ============================================================
-        // API 4: DANH SÁCH IP BỊ CHẶN (GET /api/blocked)
+        // ENDPOINT 4: GET /api/blocked
         // ============================================================
         server.createContext("/api/blocked", (HttpExchange exchange) -> {
             try {
-                if (handleCors(exchange))
-                    return;
+                if (handleCors(exchange)) return;
 
-                // [FIX LỖI 13] Lấy snapshot thay vì reference trực tiếp → tránh
-                // ConcurrentModificationException
-                // khi Firewall.blockIP() được gọi từ thread khác trong lúc đang duyệt set
+                // Use a snapshot to avoid ConcurrentModificationException
+                // if Firewall.blockIP() is called from another thread during iteration
                 Set<String> ipsSnapshot = new java.util.HashSet<>(bot.getFirewall().getBlockedIPs());
-                System.out.println("[API /blocked] " + ipsSnapshot.size() + " IP bị chặn");
+                System.out.println("[API /blocked] " + ipsSnapshot.size() + " blocked IP(s)");
 
                 StringBuilder json = new StringBuilder("[");
                 int i = 0;
                 for (String ip : ipsSnapshot) {
                     json.append("\"").append(escapeJson(ip)).append("\"");
-                    if (i < ipsSnapshot.size() - 1)
-                        json.append(",");
+                    if (i < ipsSnapshot.size() - 1) json.append(",");
                     i++;
                 }
                 json.append("]");
@@ -273,29 +253,26 @@ public class ApiServer {
         });
 
         // ============================================================
-        // API 5: BLOCK IP THỦ CÔNG (POST /api/block)
+        // ENDPOINT 5: POST /api/block  — Manually block an IP
         // ============================================================
         server.createContext("/api/block", (HttpExchange exchange) -> {
             try {
-                if (handleCors(exchange))
-                    return;
+                if (handleCors(exchange)) return;
 
-                // Đọc body POST: { "ip": "192.168.1.1" }
+                // Read POST body: { "ip": "192.168.1.1" }
                 String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
                 String ip = extractJsonField(body, "ip");
 
                 if (ip == null || ip.isEmpty() || !ip.matches("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}")) {
-                    byte[] err = "{\"success\":false,\"message\":\"IP không hợp lệ\"}".getBytes(StandardCharsets.UTF_8);
+                    byte[] err = "{\"success\":false,\"message\":\"Invalid IP address\"}".getBytes(StandardCharsets.UTF_8);
                     exchange.sendResponseHeaders(400, err.length);
-                    try (OutputStream os = exchange.getResponseBody()) {
-                        os.write(err);
-                    }
+                    try (OutputStream os = exchange.getResponseBody()) { os.write(err); }
                     return;
                 }
 
                 bot.getFirewall().blockIP(ip);
-                System.out.println("[API /block] Đã BLOCK IP thủ công: " + ip);
-                sendJson(exchange, "{\"success\":true,\"message\":\"Đã chặn IP " + escapeJson(ip) + "\"}");
+                System.out.println("[API /block] Manually blocked IP: " + ip);
+                sendJson(exchange, "{\"success\":true,\"message\":\"Blocked IP " + escapeJson(ip) + "\"}");
 
             } catch (Exception e) {
                 System.err.println("[API /block] ERROR: " + e.getMessage());
@@ -304,28 +281,25 @@ public class ApiServer {
         });
 
         // ============================================================
-        // API 6: GỠ CHẶN IP (POST /api/unblock)
+        // ENDPOINT 6: POST /api/unblock  — Manually unblock an IP
         // ============================================================
         server.createContext("/api/unblock", (HttpExchange exchange) -> {
             try {
-                if (handleCors(exchange))
-                    return;
+                if (handleCors(exchange)) return;
 
                 String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
                 String ip = extractJsonField(body, "ip");
 
                 if (ip == null || ip.isEmpty()) {
-                    byte[] err = "{\"success\":false,\"message\":\"IP không hợp lệ\"}".getBytes(StandardCharsets.UTF_8);
+                    byte[] err = "{\"success\":false,\"message\":\"Invalid IP address\"}".getBytes(StandardCharsets.UTF_8);
                     exchange.sendResponseHeaders(400, err.length);
-                    try (OutputStream os = exchange.getResponseBody()) {
-                        os.write(err);
-                    }
+                    try (OutputStream os = exchange.getResponseBody()) { os.write(err); }
                     return;
                 }
 
                 bot.getFirewall().unblockIP(ip);
-                System.out.println("[API /unblock] Đã GỠ CHẶN IP: " + ip);
-                sendJson(exchange, "{\"success\":true,\"message\":\"Đã gỡ chặn IP " + escapeJson(ip) + "\"}");
+                System.out.println("[API /unblock] Unblocked IP: " + ip);
+                sendJson(exchange, "{\"success\":true,\"message\":\"Unblocked IP " + escapeJson(ip) + "\"}");
 
             } catch (Exception e) {
                 System.err.println("[API /unblock] ERROR: " + e.getMessage());
@@ -333,21 +307,17 @@ public class ApiServer {
             }
         });
 
-        // [FIX LỖI 1+2] ĐÃ XÓA: Thread khởi động LogGenerator lần 2 ở đây.
-        // LogGenerator được khởi động DUY NHẤT 1 lần từ Main.java (Bước 3).
         server.start();
-        System.out.println("✅ API Server running at http://localhost:8080");
-        System.out
-                .println("   Endpoints: /api/analyze, /api/logs, /api/alerts, /api/blocked, /api/block, /api/unblock");
-        System.out.println(
-                "   Data source: " + (DatabaseConnection.isAvailable() ? "MySQL Database" : "File text (fallback)"));
+        System.out.println("   API Server running at http://localhost:8080");
+        System.out.println("   Endpoints: /api/analyze, /api/logs, /api/alerts, /api/blocked, /api/block, /api/unblock");
+        System.out.println("   Data source: " + (DatabaseConnection.isAvailable() ? "MySQL Database" : "File text (fallback)"));
     }
 
     // ============================================================
-    // HÀM PHỤ TRỢ
+    // HELPER METHODS
     // ============================================================
 
-    /** Xử lý CORS — cho phép Frontend gọi API từ domain/port khác */
+    /** Sets CORS headers and handles OPTIONS preflight requests. */
     private static boolean handleCors(HttpExchange exchange) throws Exception {
         exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
         exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -361,7 +331,7 @@ public class ApiServer {
         return false;
     }
 
-    /** Gửi JSON response về cho Frontend */
+    /** Sends a JSON string as an HTTP 200 response with UTF-8 encoding. */
     private static void sendJson(HttpExchange exchange, String response) throws Exception {
         exchange.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");
         byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
@@ -371,10 +341,9 @@ public class ApiServer {
         }
     }
 
-    /** Escape ký tự đặc biệt trong JSON string */
+    /** Escapes special characters in a JSON string value. */
     private static String escapeJson(String text) {
-        if (text == null)
-            return "";
+        if (text == null) return "";
         return text
                 .replace("\\", "\\\\")
                 .replace("\"", "\\\"")
@@ -384,36 +353,35 @@ public class ApiServer {
     }
 
     /**
-     * Trích xuất giá trị của một field từ JSON string đơn giản.
-     * Dùng cho POST body đơn giản dạng {"ip": "1.2.3.4"}.
-     * Không dùng cho JSON lồng nhau phức tạp.
+     * Extracts a field value from a simple flat JSON string.
+     * Intended for POST bodies like {"ip": "1.2.3.4"}.
+     * Not suitable for nested JSON structures.
      */
     private static String extractJsonField(String json, String field) {
-        if (json == null || json.isEmpty())
-            return null;
-        // Tìm "field":"value" hoặc "field": "value"
+        if (json == null || json.isEmpty()) return null;
+
         String search = "\"" + field + "\"";
         int idx = json.indexOf(search);
-        if (idx < 0)
-            return null;
+        if (idx < 0) return null;
+
         int colon = json.indexOf(':', idx + search.length());
-        if (colon < 0)
-            return null;
-        // Bỏ qua khoảng trắng
+        if (colon < 0) return null;
+
+        // Skip whitespace after the colon
         int start = colon + 1;
         while (start < json.length() && (json.charAt(start) == ' ' || json.charAt(start) == '\t'))
             start++;
-        if (start >= json.length())
-            return null;
-        // Nếu là string (có dấu nháy)
+        if (start >= json.length()) return null;
+
+        // String value (quoted)
         if (json.charAt(start) == '"') {
             start++;
             int end = json.indexOf('"', start);
-            if (end < 0)
-                return null;
+            if (end < 0) return null;
             return json.substring(start, end);
         }
-        // Nếu là value không có nháy (số, boolean)
+
+        // Non-string value (number, boolean)
         int end = start;
         while (end < json.length() && json.charAt(end) != ',' && json.charAt(end) != '}')
             end++;

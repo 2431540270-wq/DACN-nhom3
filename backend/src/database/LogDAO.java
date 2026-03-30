@@ -6,64 +6,63 @@ import java.util.List;
 import model.LogEntry;
 
 /**
- * LogDAO — Data Access Object để thao tác với bảng "logs" trong MySQL.
+ * LogDAO — Data Access Object for the "logs" table in MySQL.
  *
- * DAO là tầng trung gian giữa Code Java và Database.
- * Thay vì viết SQL rải rác khắp nơi, tất cả query đều nằm ở đây.
+ * Acts as the bridge between Java logic and the database.
+ * All SQL queries are centralised here instead of scattered across the codebase.
  *
- * Các method:
- * - insertLog() : Chèn 1 dòng log mới vào database
- * - getAllLogs() : Lấy 100 dòng log mới nhất
- * - getLogsByIP() : Tìm log theo địa chỉ IP
- * - getLogCount() : Đếm tổng số log trong database
+ * Methods:
+ *   - insertLog()   : Insert a single log entry
+ *   - insertLogs()  : Batch-insert multiple log entries (faster)
+ *   - getAllLogs()   : Retrieve the 100 most recent log entries
+ *   - getLogsByIP() : Retrieve all logs for a specific IP
+ *   - getLogCount() : Count total log entries in the database
+ *   - updateLogs()  : Update attack_type and status after SecurityBot analysis
  *
- * Tất cả đều dùng PreparedStatement (chống SQL Injection).
+ * All queries use PreparedStatement to prevent SQL injection.
  */
 public class LogDAO {
 
     /**
-     * Chèn 1 dòng log mới vào database.
+     * Inserts a single log entry into the database.
      *
-     * @param log LogEntry chứa thông tin log
-     * @return true nếu chèn thành công, false nếu thất bại
+     * @param log LogEntry to insert
+     * @return true if inserted successfully, false otherwise
      */
     public boolean insertLog(LogEntry log) {
 
         String sql = "INSERT INTO logs (timestamp, ip_address, action, status, attack_type, description) "
                 + "VALUES (?, ?, ?, ?, ?, ?)";
 
-        // try-with-resources: tự đóng Connection + PreparedStatement khi xong
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            // Gán giá trị vào các dấu ? (vị trí 1, 2, 3...)
-            // PreparedStatement tự escape ký tự đặc biệt → chống SQL Injection
             stmt.setString(1, log.getTime());
             stmt.setString(2, log.getIp());
             stmt.setString(3, log.getAction());
             stmt.setString(4, log.getStatus());
             stmt.setString(5, log.getAttackType());
-            stmt.setString(6, log.getAction() + " từ IP " + log.getIp());
+            stmt.setString(6, log.getAction() + " from IP " + log.getIp());
 
             int rowsAffected = stmt.executeUpdate();
 
             if (rowsAffected > 0) {
-                System.out.println("[DB] Đã lưu log: " + log.getIp() + " " + log.getAction());
+                System.out.println("[DB] Saved log: " + log.getIp() + " " + log.getAction());
                 return true;
             }
 
         } catch (SQLException e) {
-            System.err.println("[DB] Lỗi INSERT log: " + e.getMessage());
+            System.err.println("[DB] INSERT error: " + e.getMessage());
         }
 
         return false;
     }
 
     /**
-     * Chèn nhiều log cùng lúc (batch insert — nhanh hơn insert từng dòng).
+     * Batch-inserts multiple log entries (significantly faster than inserting one by one).
      *
-     * @param logs Danh sách LogEntry cần lưu
-     * @return Số dòng đã chèn thành công
+     * @param logs List of LogEntry to insert
+     * @return Number of rows successfully inserted
      */
     public int insertLogs(List<LogEntry> logs) {
 
@@ -81,29 +80,28 @@ public class LogDAO {
                 stmt.setString(3, log.getAction());
                 stmt.setString(4, log.getStatus());
                 stmt.setString(5, log.getAttackType());
-                stmt.setString(6, log.getAction() + " từ IP " + log.getIp());
-                stmt.addBatch(); // Thêm vào hàng đợi batch
+                stmt.setString(6, log.getAction() + " from IP " + log.getIp());
+                stmt.addBatch();
             }
 
-            int[] results = stmt.executeBatch(); // Chạy tất cả 1 lần
+            int[] results = stmt.executeBatch();
             for (int r : results) {
-                if (r >= 0)
-                    count++;
+                if (r >= 0) count++;
             }
 
-            System.out.println("[DB] Batch insert: " + count + "/" + logs.size() + " dòng");
+            System.out.println("[DB] Batch insert: " + count + "/" + logs.size() + " rows");
 
         } catch (SQLException e) {
-            System.err.println("[DB] Lỗi batch INSERT: " + e.getMessage());
+            System.err.println("[DB] Batch INSERT error: " + e.getMessage());
         }
 
         return count;
     }
 
     /**
-     * Lấy 100 dòng log mới nhất từ database.
+     * Retrieves the 100 most recent log entries from the database.
      *
-     * @return List<LogEntry> danh sách log, hoặc list rỗng nếu lỗi
+     * @return List<LogEntry>, or empty list on error
      */
     public List<LogEntry> getAllLogs() {
 
@@ -116,26 +114,25 @@ public class LogDAO {
                 PreparedStatement stmt = conn.prepareStatement(sql);
                 ResultSet rs = stmt.executeQuery()) {
 
-            // Duyệt từng dòng kết quả (rs.next() trả false khi hết dòng)
             while (rs.next()) {
                 LogEntry entry = mapResultToLogEntry(rs);
                 logs.add(entry);
             }
 
-            System.out.println("[DB] Đọc được " + logs.size() + " dòng log từ database");
+            System.out.println("[DB] Loaded " + logs.size() + " log row(s) from database");
 
         } catch (SQLException e) {
-            System.err.println("[DB] Lỗi SELECT logs: " + e.getMessage());
+            System.err.println("[DB] SELECT error: " + e.getMessage());
         }
 
         return logs;
     }
 
     /**
-     * Tìm log theo địa chỉ IP.
+     * Retrieves all log entries for a specific IP address.
      *
-     * @param ip Địa chỉ IP cần tìm (VD: "192.168.1.15")
-     * @return List<LogEntry> danh sách log của IP đó
+     * @param ip IP address to search (e.g. "192.168.1.15")
+     * @return List<LogEntry> for that IP
      */
     public List<LogEntry> getLogsByIP(String ip) {
 
@@ -147,7 +144,7 @@ public class LogDAO {
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setString(1, ip); // Gán IP vào dấu ?
+            stmt.setString(1, ip);
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -156,19 +153,19 @@ public class LogDAO {
                 }
             }
 
-            System.out.println("[DB] Tìm thấy " + logs.size() + " log cho IP: " + ip);
+            System.out.println("[DB] Found " + logs.size() + " log(s) for IP: " + ip);
 
         } catch (SQLException e) {
-            System.err.println("[DB] Lỗi SELECT by IP: " + e.getMessage());
+            System.err.println("[DB] SELECT by IP error: " + e.getMessage());
         }
 
         return logs;
     }
 
     /**
-     * Đếm tổng số log trong database.
+     * Returns the total number of log entries in the database.
      *
-     * @return Số lượng dòng log, hoặc 0 nếu lỗi
+     * @return Row count, or 0 on error
      */
     public int getLogCount() {
 
@@ -183,34 +180,78 @@ public class LogDAO {
             }
 
         } catch (SQLException e) {
-            System.err.println("[DB] Lỗi COUNT: " + e.getMessage());
+            System.err.println("[DB] COUNT error: " + e.getMessage());
         }
 
         return 0;
     }
 
     /**
-     * Hàm phụ: Chuyển 1 dòng ResultSet thành LogEntry object.
-     * Tách riêng để tránh lặp code trong getAllLogs() và getLogsByIP().
+     * Batch-updates attack_type and status for log entries that have a database ID.
+     *
+     * Called AFTER SecurityBot.analyze() runs in RAM so that the analysis results
+     * (real attack_type, updated status) are persisted back to the database.
+     * Without this step, the next call to getAllLogs() would still read stale data.
+     *
+     * @param logs List of LogEntry already updated by SecurityBot
+     * @return Number of rows successfully updated
+     */
+    public int updateLogs(java.util.List<LogEntry> logs) {
+
+        String sql = "UPDATE logs SET attack_type = ?, status = ? WHERE id = ? AND id > 0";
+
+        int count = 0;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            int batchCount = 0;
+
+            for (LogEntry log : logs) {
+                // Only update rows that exist in the DB (id > 0)
+                if (log.getId() <= 0) continue;
+
+                stmt.setString(1, log.getAttackType());
+                stmt.setString(2, log.getStatus());
+                stmt.setInt(3, log.getId());
+                stmt.addBatch();
+                batchCount++;
+            }
+
+            // Only execute if there is at least one entry — avoids empty-batch exception
+            if (batchCount > 0) {
+                int[] results = stmt.executeBatch();
+                for (int r : results) {
+                    if (r >= 0) count++;
+                }
+                System.out.println("[DB] updateLogs: updated " + count + " row(s)");
+            }
+
+        } catch (SQLException e) {
+            System.err.println("[DB] updateLogs error: " + e.getMessage());
+        }
+
+        return count;
+    }
+
+    /**
+     * Maps a single ResultSet row to a LogEntry object.
+     * Extracted to avoid duplicated mapping code in getAllLogs() and getLogsByIP().
      */
     private LogEntry mapResultToLogEntry(ResultSet rs) throws SQLException {
 
-        String time = rs.getString("timestamp");
-        String ip = rs.getString("ip_address");
-        String action = rs.getString("action");
+        String time      = rs.getString("timestamp");
+        String ip        = rs.getString("ip_address");
+        String action    = rs.getString("action");
         String attackType = rs.getString("attack_type");
 
-        // Tạo LogEntry bằng constructor cũ (3 tham số)
         LogEntry entry = new LogEntry(time, ip, action);
         if (attackType == null || attackType.isEmpty()) {
             attackType = "NORMAL";
         }
         entry.setAttackType(attackType);
-        // Gán thêm các field từ database
         entry.setStatus(rs.getString("status"));
         entry.setScore(calculateScoreFromStatus(rs.getString("status")));
-
-        // Gán id và description từ DB
         entry.setId(rs.getInt("id"));
         entry.setDescription(rs.getString("description"));
 
@@ -218,23 +259,18 @@ public class LogDAO {
     }
 
     /**
-     * Hàm phụ: Tính score từ status (vì database không có cột score).
-     * Dùng để hiển thị score trên Frontend.
+     * Derives a numeric risk score from the status string.
+     * Used to populate the score field when reading from the database
+     * (the database does not store a score column).
      */
     private int calculateScoreFromStatus(String status) {
-        if (status == null)
-            return 0;
+        if (status == null) return 0;
         switch (status) {
-            case "BLOCKED":
-                return 90;
-            case "MONITORING":
-                return 60;
-            case "SUSPICIOUS":
-                return 30;
-            case "PASS":
-                return 5;
-            default:
-                return 0;
+            case "BLOCKED":    return 90;
+            case "MONITORING": return 60;
+            case "SUSPICIOUS": return 30;
+            case "PASS":       return 5;
+            default:           return 0;
         }
     }
 }
