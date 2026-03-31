@@ -8,7 +8,6 @@
 async function loadLogs() {
     try {
         // BƯỚC 1: LẤY DỮ LIỆU (REAL-TIME)
-        // [FIX LỖI 9] Gọi /api/alerts để lấy đúng số cảnh báo thật từ SecurityBot
         const [stats, logs, blocked, alerts] = await Promise.all([
             fetchData('/analyze'),
             fetchData('/logs'),
@@ -119,5 +118,5 @@ document.addEventListener('DOMContentLoaded', () => {
     // /analyze phải chạy SecurityBot.analyze() + DB read mỗi lần gọi
     setInterval(() => {
         loadLogs();
-    }, 5000);
+    }, 1000);
 });

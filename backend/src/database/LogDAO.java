@@ -9,15 +9,16 @@ import model.LogEntry;
  * LogDAO — Data Access Object for the "logs" table in MySQL.
  *
  * Acts as the bridge between Java logic and the database.
- * All SQL queries are centralised here instead of scattered across the codebase.
+ * All SQL queries are centralised here instead of scattered across the
+ * codebase.
  *
  * Methods:
- *   - insertLog()   : Insert a single log entry
- *   - insertLogs()  : Batch-insert multiple log entries (faster)
- *   - getAllLogs()   : Retrieve the 100 most recent log entries
- *   - getLogsByIP() : Retrieve all logs for a specific IP
- *   - getLogCount() : Count total log entries in the database
- *   - updateLogs()  : Update attack_type and status after SecurityBot analysis
+ * - insertLog() : Insert a single log entry
+ * - insertLogs() : Batch-insert multiple log entries (faster)
+ * - getAllLogs() : Retrieve the 100 most recent log entries
+ * - getLogsByIP() : Retrieve all logs for a specific IP
+ * - getLogCount() : Count total log entries in the database
+ * - updateLogs() : Update attack_type and status after SecurityBot analysis
  *
  * All queries use PreparedStatement to prevent SQL injection.
  */
@@ -59,7 +60,8 @@ public class LogDAO {
     }
 
     /**
-     * Batch-inserts multiple log entries (significantly faster than inserting one by one).
+     * Batch-inserts multiple log entries (significantly faster than inserting one
+     * by one).
      *
      * @param logs List of LogEntry to insert
      * @return Number of rows successfully inserted
@@ -86,7 +88,8 @@ public class LogDAO {
 
             int[] results = stmt.executeBatch();
             for (int r : results) {
-                if (r >= 0) count++;
+                if (r >= 0)
+                    count++;
             }
 
             System.out.println("[DB] Batch insert: " + count + "/" + logs.size() + " rows");
@@ -208,8 +211,9 @@ public class LogDAO {
             int batchCount = 0;
 
             for (LogEntry log : logs) {
-                // Only update rows that exist in the DB (id > 0)
-                if (log.getId() <= 0) continue;
+                // Only update rows that exist in the DB and have been modified
+                if (log.getId() <= 0 || !log.isModified())
+                    continue;
 
                 stmt.setString(1, log.getAttackType());
                 stmt.setString(2, log.getStatus());
@@ -222,7 +226,8 @@ public class LogDAO {
             if (batchCount > 0) {
                 int[] results = stmt.executeBatch();
                 for (int r : results) {
-                    if (r >= 0) count++;
+                    if (r >= 0)
+                        count++;
                 }
                 System.out.println("[DB] updateLogs: updated " + count + " row(s)");
             }
@@ -235,14 +240,42 @@ public class LogDAO {
     }
 
     /**
+     * Retrieves all unique IPs that have a BLOCKED status in the database.
+     * This is used to re-populate the Firewall on server startup.
+     *
+     * @return List of blocked IP addresses
+     */
+    public List<String> getBlockedIPs() {
+        List<String> blockedIPs = new ArrayList<>();
+        String sql = "SELECT DISTINCT ip_address FROM logs WHERE status = 'BLOCKED'";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+
+            while (rs.next()) {
+                blockedIPs.add(rs.getString("ip_address"));
+            }
+            if (!blockedIPs.isEmpty()) {
+                System.out.println("[DB] Loaded " + blockedIPs.size() + " BLOCKED IP(s) from database into Firewall");
+            }
+
+        } catch (SQLException e) {
+            System.err.println("[DB] getBlockedIPs error: " + e.getMessage());
+        }
+
+        return blockedIPs;
+    }
+
+    /**
      * Maps a single ResultSet row to a LogEntry object.
      * Extracted to avoid duplicated mapping code in getAllLogs() and getLogsByIP().
      */
     private LogEntry mapResultToLogEntry(ResultSet rs) throws SQLException {
 
-        String time      = rs.getString("timestamp");
-        String ip        = rs.getString("ip_address");
-        String action    = rs.getString("action");
+        String time = rs.getString("timestamp");
+        String ip = rs.getString("ip_address");
+        String action = rs.getString("action");
         String attackType = rs.getString("attack_type");
 
         LogEntry entry = new LogEntry(time, ip, action);
@@ -264,13 +297,19 @@ public class LogDAO {
      * (the database does not store a score column).
      */
     private int calculateScoreFromStatus(String status) {
-        if (status == null) return 0;
+        if (status == null)
+            return 0;
         switch (status) {
-            case "BLOCKED":    return 90;
-            case "MONITORING": return 60;
-            case "SUSPICIOUS": return 30;
-            case "PASS":       return 5;
-            default:           return 0;
+            case "BLOCKED":
+                return 90;
+            case "MONITORING":
+                return 60;
+            case "SUSPICIOUS":
+                return 30;
+            case "PASS":
+                return 5;
+            default:
+                return 0;
         }
     }
 }

@@ -16,7 +16,7 @@
             <li><a href="dashboard.html">📊 Tổng quan Dashboard</a></li>
             <li><a href="monitor.html">📡 Giám sát thời gian thực</a></li>
             <li><a href="alerts.html">⚠️ Quản lý Cảnh báo</a></li>
-            <li><a href="firewall.html">🔥 Cấu hình Firewall</a></li>
+            <li><a href="firewall.html">🔥 Quản lý Firewall&Blocklist</a></li>
             <li><a href="attack-log.html" class="active">📁 Nhật ký Tấn công</a></li>
         </ul>
     </div>
@@ -124,17 +124,17 @@
             attackLogs.forEach((log, idx) => {
                 const severityClass =
                     log.status === 'BLOCKED' ? 'severity-critical' :
-                    log.status === 'MONITORING' ? 'severity-high' :
-                    log.status === 'SUSPICIOUS' ? 'severity-medium' : '';
+                        log.status === 'MONITORING' ? 'severity-high' :
+                            log.status === 'SUSPICIOUS' ? 'severity-medium' : '';
 
                 const actionLabel =
                     log.attack === 'BRUTE_FORCE' ? 'Brute Force' :
-                    log.attack === 'REQUEST_FLOOD' ? 'Request Flood' : log.attack || 'UNKNOWN';
+                        log.attack === 'REQUEST_FLOOD' ? 'Request Flood' : log.attack || 'UNKNOWN';
 
                 const aiAction =
                     log.status === 'BLOCKED' ? 'Auto-Blocked' :
-                    log.status === 'MONITORING' ? 'Monitoring' :
-                    log.status === 'SUSPICIOUS' ? 'Flagged' : log.status;
+                        log.status === 'MONITORING' ? 'Monitoring' :
+                            log.status === 'SUSPICIOUS' ? 'Flagged' : log.status;
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `

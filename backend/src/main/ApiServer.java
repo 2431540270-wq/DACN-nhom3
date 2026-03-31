@@ -21,16 +21,16 @@ import database.LogDAO;
  * Port: 8080 (http://localhost:8080)
  *
  * Data source priority:
- *   1. MySQL Database (via LogDAO)   — preferred
- *   2. Text file (via LogReader)      — fallback if DB is unavailable
+ * 1. MySQL Database (via LogDAO) — preferred
+ * 2. Text file (via LogReader) — fallback if DB is unavailable
  *
  * Endpoints:
- *   GET  /api/analyze  — Analyze logs, compute risk scores
- *   GET  /api/logs     — Retrieve the 100 most recent log entries
- *   GET  /api/alerts   — Retrieve the current alert list
- *   GET  /api/blocked  — Retrieve the list of blocked IPs
- *   POST /api/block    — Manually block an IP
- *   POST /api/unblock  — Manually unblock an IP
+ * GET /api/analyze — Analyze logs, compute risk scores
+ * GET /api/logs — Retrieve the 100 most recent log entries
+ * GET /api/alerts — Retrieve the current alert list
+ * GET /api/blocked — Retrieve the list of blocked IPs
+ * POST /api/block — Manually block an IP
+ * POST /api/unblock — Manually unblock an IP
  */
 public class ApiServer {
 
@@ -52,6 +52,14 @@ public class ApiServer {
         bot = sharedBot;
         alertSystem = sharedAlertSystem;
 
+        // Load persistency: Blocked IPs from DB to restore memory Firewall state
+        if (DatabaseConnection.isAvailable()) {
+            List<String> blockedIPs = logDAO.getBlockedIPs();
+            for (String ip : blockedIPs) {
+                bot.getFirewall().blockIP(ip);
+            }
+        }
+
         HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
 
         // ============================================================
@@ -59,7 +67,8 @@ public class ApiServer {
         // ============================================================
         server.createContext("/api/analyze", (HttpExchange exchange) -> {
             try {
-                if (handleCors(exchange)) return;
+                if (handleCors(exchange))
+                    return;
 
                 // Priority 1: read from database
                 if (DatabaseConnection.isAvailable()) {
@@ -69,7 +78,8 @@ public class ApiServer {
                     // Fallback: read from text file
                     LogReader reader = new LogReader();
                     logs = reader.readLog("logs/network.log");
-                    if (logs == null) logs = new ArrayList<>();
+                    if (logs == null)
+                        logs = new ArrayList<>();
                     System.out.println("[API /analyze] Source: FILE — " + logs.size() + " row(s)");
                 }
 
@@ -88,7 +98,8 @@ public class ApiServer {
 
                 if (DatabaseConnection.isAvailable()) {
                     int dbCount = logDAO.getLogCount();
-                    if (dbCount > displayTotal) displayTotal = dbCount;
+                    if (dbCount > displayTotal)
+                        displayTotal = dbCount;
                 }
 
                 if (!logs.isEmpty()) {
@@ -118,7 +129,8 @@ public class ApiServer {
         // ============================================================
         server.createContext("/api/logs", (HttpExchange exchange) -> {
             try {
-                if (handleCors(exchange)) return;
+                if (handleCors(exchange))
+                    return;
 
                 // Prefer database; fall back to the last in-memory list
                 List<LogEntry> logsToSend = logs;
@@ -142,7 +154,8 @@ public class ApiServer {
                             .append("\"score\":").append(l.getScore()).append(",")
                             .append("\"status\":\"").append(escapeJson(l.getStatus())).append("\"")
                             .append("}");
-                    if (i < limit - 1) json.append(",");
+                    if (i < limit - 1)
+                        json.append(",");
                 }
                 json.append("]");
 
@@ -160,7 +173,8 @@ public class ApiServer {
         // ============================================================
         server.createContext("/api/alerts", (HttpExchange exchange) -> {
             try {
-                if (handleCors(exchange)) return;
+                if (handleCors(exchange))
+                    return;
 
                 List<String> alerts = alertSystem.getAlerts();
                 System.out.println("[API /alerts] " + alerts.size() + " alert(s)");
@@ -169,21 +183,36 @@ public class ApiServer {
                 for (int i = 0; i < alerts.size(); i++) {
                     String alert = alerts.get(i);
 
-                    String level  = "LOW";
+                    String level = "LOW";
                     String attack = "UNKNOWN";
-                    String ip     = "0.0.0.0";
-                    int score     = 10;
+                    String ip = "0.0.0.0";
+                    int score = 10;
 
                     if (alert.contains("🚨")) {
-                        level = "CRITICAL"; score = 90;
+                        level = "CRITICAL";
+                        score = 90;
                     } else if (alert.contains("🔴")) {
-                        level = "HIGH"; score = 70;
+                        level = "HIGH";
+                        score = 70;
                     } else if (alert.contains("⚠")) {
-                        level = "MEDIUM"; score = 50;
+                        level = "MEDIUM";
+                        score = 50;
                     }
 
-                    if (alert.contains("BRUTE_FORCE"))      attack = "BRUTE_FORCE";
-                    else if (alert.contains("REQUEST_FLOOD")) attack = "REQUEST_FLOOD";
+                    if (alert.contains("BRUTE_FORCE"))
+                        attack = "BRUTE_FORCE";
+                    else if (alert.contains("REQUEST_FLOOD"))
+                        attack = "REQUEST_FLOOD";
+                    else if (alert.contains("LOGIN_FAIL"))
+                        attack = "BRUTE_FORCE";
+                    else if (alert.contains("REQUEST"))
+                        attack = "REQUEST_FLOOD";
+                    else if (level.equals("CRITICAL"))
+                        attack = "BRUTE_FORCE";
+                    else if (level.equals("HIGH"))
+                        attack = "REQUEST_FLOOD";
+                    else
+                        attack = "DANGEROUS_ACTIVITY";
 
                     // Extract IP using simple token scan
                     String[] parts = alert.split(" ");
@@ -197,7 +226,7 @@ public class ApiServer {
                     String time = "";
                     if (alert.contains("]")) {
                         int startIdx = alert.indexOf("[");
-                        int endIdx   = alert.indexOf("]");
+                        int endIdx = alert.indexOf("]");
                         if (startIdx >= 0 && endIdx > startIdx) {
                             time = alert.substring(startIdx + 1, endIdx);
                         }
@@ -211,7 +240,8 @@ public class ApiServer {
                             .append("\"score\":").append(score)
                             .append("}");
 
-                    if (i < alerts.size() - 1) json.append(",");
+                    if (i < alerts.size() - 1)
+                        json.append(",");
                 }
                 json.append("]");
 
@@ -228,7 +258,8 @@ public class ApiServer {
         // ============================================================
         server.createContext("/api/blocked", (HttpExchange exchange) -> {
             try {
-                if (handleCors(exchange)) return;
+                if (handleCors(exchange))
+                    return;
 
                 // Use a snapshot to avoid ConcurrentModificationException
                 // if Firewall.blockIP() is called from another thread during iteration
@@ -239,7 +270,8 @@ public class ApiServer {
                 int i = 0;
                 for (String ip : ipsSnapshot) {
                     json.append("\"").append(escapeJson(ip)).append("\"");
-                    if (i < ipsSnapshot.size() - 1) json.append(",");
+                    if (i < ipsSnapshot.size() - 1)
+                        json.append(",");
                     i++;
                 }
                 json.append("]");
@@ -253,20 +285,24 @@ public class ApiServer {
         });
 
         // ============================================================
-        // ENDPOINT 5: POST /api/block  — Manually block an IP
+        // ENDPOINT 5: POST /api/block — Manually block an IP
         // ============================================================
         server.createContext("/api/block", (HttpExchange exchange) -> {
             try {
-                if (handleCors(exchange)) return;
+                if (handleCors(exchange))
+                    return;
 
                 // Read POST body: { "ip": "192.168.1.1" }
                 String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
                 String ip = extractJsonField(body, "ip");
 
                 if (ip == null || ip.isEmpty() || !ip.matches("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}")) {
-                    byte[] err = "{\"success\":false,\"message\":\"Invalid IP address\"}".getBytes(StandardCharsets.UTF_8);
+                    byte[] err = "{\"success\":false,\"message\":\"Invalid IP address\"}"
+                            .getBytes(StandardCharsets.UTF_8);
                     exchange.sendResponseHeaders(400, err.length);
-                    try (OutputStream os = exchange.getResponseBody()) { os.write(err); }
+                    try (OutputStream os = exchange.getResponseBody()) {
+                        os.write(err);
+                    }
                     return;
                 }
 
@@ -281,19 +317,23 @@ public class ApiServer {
         });
 
         // ============================================================
-        // ENDPOINT 6: POST /api/unblock  — Manually unblock an IP
+        // ENDPOINT 6: POST /api/unblock — Manually unblock an IP
         // ============================================================
         server.createContext("/api/unblock", (HttpExchange exchange) -> {
             try {
-                if (handleCors(exchange)) return;
+                if (handleCors(exchange))
+                    return;
 
                 String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
                 String ip = extractJsonField(body, "ip");
 
                 if (ip == null || ip.isEmpty()) {
-                    byte[] err = "{\"success\":false,\"message\":\"Invalid IP address\"}".getBytes(StandardCharsets.UTF_8);
+                    byte[] err = "{\"success\":false,\"message\":\"Invalid IP address\"}"
+                            .getBytes(StandardCharsets.UTF_8);
                     exchange.sendResponseHeaders(400, err.length);
-                    try (OutputStream os = exchange.getResponseBody()) { os.write(err); }
+                    try (OutputStream os = exchange.getResponseBody()) {
+                        os.write(err);
+                    }
                     return;
                 }
 
@@ -309,8 +349,10 @@ public class ApiServer {
 
         server.start();
         System.out.println("   API Server running at http://localhost:8080");
-        System.out.println("   Endpoints: /api/analyze, /api/logs, /api/alerts, /api/blocked, /api/block, /api/unblock");
-        System.out.println("   Data source: " + (DatabaseConnection.isAvailable() ? "MySQL Database" : "File text (fallback)"));
+        System.out
+                .println("   Endpoints: /api/analyze, /api/logs, /api/alerts, /api/blocked, /api/block, /api/unblock");
+        System.out.println(
+                "   Data source: " + (DatabaseConnection.isAvailable() ? "MySQL Database" : "File text (fallback)"));
     }
 
     // ============================================================
@@ -343,7 +385,8 @@ public class ApiServer {
 
     /** Escapes special characters in a JSON string value. */
     private static String escapeJson(String text) {
-        if (text == null) return "";
+        if (text == null)
+            return "";
         return text
                 .replace("\\", "\\\\")
                 .replace("\"", "\\\"")
@@ -358,26 +401,31 @@ public class ApiServer {
      * Not suitable for nested JSON structures.
      */
     private static String extractJsonField(String json, String field) {
-        if (json == null || json.isEmpty()) return null;
+        if (json == null || json.isEmpty())
+            return null;
 
         String search = "\"" + field + "\"";
         int idx = json.indexOf(search);
-        if (idx < 0) return null;
+        if (idx < 0)
+            return null;
 
         int colon = json.indexOf(':', idx + search.length());
-        if (colon < 0) return null;
+        if (colon < 0)
+            return null;
 
         // Skip whitespace after the colon
         int start = colon + 1;
         while (start < json.length() && (json.charAt(start) == ' ' || json.charAt(start) == '\t'))
             start++;
-        if (start >= json.length()) return null;
+        if (start >= json.length())
+            return null;
 
         // String value (quoted)
         if (json.charAt(start) == '"') {
             start++;
             int end = json.indexOf('"', start);
-            if (end < 0) return null;
+            if (end < 0)
+                return null;
             return json.substring(start, end);
         }
 

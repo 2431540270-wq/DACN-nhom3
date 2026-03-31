@@ -26,8 +26,8 @@ async function refreshMonitorLogs() {
     if (logs.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 30px;">
-                    Biển Log Đang Êm Đềm Chua Lên Khúc Giao Mùa Đâu Bạn MÌNH! Gõ Lệnh Chơi Bời Gì Vô Chưa...
+                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">
+                    Biển Log Đang Êm Đềm Chưa Lên Khúc Giao Mùa Đâu Bạn MÌNH! Gõ Lệnh Chơi Bời Gì Vô Chưa...
                 </td>
             </tr>
         `;
@@ -61,10 +61,17 @@ async function refreshMonitorLogs() {
             row.classList.add("row-warning"); // Warning Thì Vàng Óng Chói Khựa Bền Viền!
         }
 
+        // Vẽ class badge cho attack type tuân theo CSS chung nếu có
+        let attackBadgeClass = "status-badge";
+        if (log.attack === "BRUTE_FORCE") attackBadgeClass += " severity-critical";
+        else if (log.attack === "REQUEST_FLOOD") attackBadgeClass += " severity-high";
+        else if (log.attack === "UNKNOWN_ATTACK") attackBadgeClass += " severity-medium";
+        
         row.innerHTML = `
         <td>${log.time || '-'}</td>
         <td><strong>${log.ip || 'N/A'}</strong></td>
         <td>${log.action || '-'}</td>
+        <td><span class="${attackBadgeClass}">${log.attack || 'NORMAL'}</span></td>
         <td class="${severity}">${risk}</td>
         <td>
             <span class="status-badge">
@@ -85,9 +92,8 @@ async function refreshMonitorLogs() {
     }
 }
 
-// [FIX LỖI 10] Tăng từ 1000ms lên 2000ms để giảm tải backend
-// Monitor page là real-time display chính nên giữ 2s, đủ responsive
-const monitorInterval = setInterval(refreshMonitorLogs, 2000);
+// Trang sẽ reload mỗi 1s để phù hợp với logic
+const monitorInterval = setInterval(refreshMonitorLogs, 1000);
 
 // Nạp dữ liệu khi DOM sẵn sàng
 document.addEventListener('DOMContentLoaded', refreshMonitorLogs);

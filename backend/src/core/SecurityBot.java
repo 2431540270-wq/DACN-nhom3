@@ -26,7 +26,7 @@ public class SecurityBot {
         LogAnalyzer analyzer = new LogAnalyzer();
 
         // Step 1: Count actions per IP
-        Map<String, Integer> failMap    = analyzer.countAction(logs, "LOGIN_FAIL");
+        Map<String, Integer> failMap = analyzer.countAction(logs, "LOGIN_FAIL");
         Map<String, Integer> requestMap = analyzer.countAction(logs, "REQUEST");
         Map<String, Integer> successMap = analyzer.countAction(logs, "LOGIN_SUCCESS");
 
@@ -40,23 +40,32 @@ public class SecurityBot {
         for (String ip : allIPs) {
 
             if (firewall.isBlocked(ip)) {
-                updateLogsForIP(logs, ip, 100, "BLOCKED", "BLOCKED");
+                for (LogEntry log : logs) {
+                    if (log.getIp().equals(ip)) {
+                        log.setScore(90);
+                        log.setStatus("BLOCKED");
+                        // Giữ nguyên attackType đã có từ CSDL, chỉ đổi nếu nó đang là NORMAL.
+                        if (log.getAttackType() == null || log.getAttackType().equals("NORMAL")) {
+                            log.setAttackType("BLOCKED");
+                        }
+                    }
+                }
                 continue;
             }
 
-            int fail    = failMap.getOrDefault(ip, 0);
+            int fail = failMap.getOrDefault(ip, 0);
             int request = requestMap.getOrDefault(ip, 0);
             int success = successMap.getOrDefault(ip, 0);
             int history = dangerHistory.getOrDefault(ip, 0);
 
             // Risk score formula:
-            //   LOGIN_FAIL  x3 — strong signal of brute force
-            //   REQUEST     x1 — normal traffic, low weight
-            //   LOGIN_SUCCESS -2 — reduces suspicion
-            //   history     x5 — prior offenses multiply penalty
-            int riskScore = (fail * 3)
-                    + (request * 1)
-                    - (success * 2)
+            // LOGIN_FAIL x3 — strong signal of brute force
+            // REQUEST x1 — normal traffic, low weight
+            // LOGIN_SUCCESS -2 — reduces suspicion
+            // history x5 — prior offenses multiply penalty
+            int riskScore = (fail * 10)
+                    + (request * 5)
+                    - (success * 1)
                     + (history * 5);
 
             // Clamp to 0 (no negative scores)
@@ -64,9 +73,9 @@ public class SecurityBot {
 
             // Step 4: Determine attack type
             String attackType = "NORMAL";
-            if (fail >= 5) {
+            if (fail >= 1) {
                 attackType = "BRUTE_FORCE";
-            } else if (request >= 20) {
+            } else if (request >= 1) {
                 attackType = "REQUEST_FLOOD";
             }
 
@@ -79,14 +88,14 @@ public class SecurityBot {
 
                 String message;
 
-                if (riskScore >= 30) {
+                if (riskScore >= 45) {
                     firewall.blockIP(ip);
                     status = "BLOCKED";
                     message = "🚨 CRITICAL " + attackType + " IP " + ip
                             + " | Risk Score: " + riskScore
                             + " | IP BLOCKED";
 
-                } else if (riskScore >= 20) {
+                } else if (riskScore >= 30) {
                     status = "MONITORING";
                     message = "🔴 HIGH RISK " + attackType + " IP " + ip
                             + " | Risk Score: " + riskScore;
@@ -106,7 +115,8 @@ public class SecurityBot {
     }
 
     /**
-     * Updates score, status, and attackType on all log entries belonging to a given IP.
+     * Updates score, status, and attackType on all log entries belonging to a given
+     * IP.
      *
      * @param logs       Full list of log entries
      * @param ip         IP address to match
@@ -118,9 +128,24 @@ public class SecurityBot {
             int riskScore, String status, String attackType) {
         for (LogEntry log : logs) {
             if (log.getIp().equals(ip)) {
-                log.setScore(riskScore);
-                log.setStatus(status);
+
+                int currentScore = Math.max(log.getScore(), riskScore);
+                String currentStatus = log.getStatus();
+
+                // attackType luôn được cập nhật theo kết quả phân tích mới nhất
+                // (tách riêng khỏi No-Downgrade rule của status)
                 log.setAttackType(attackType);
+
+                // Luật chống hạ cấp: chỉ bảo vệ status, không đụng attackType
+                // Không cho phép Bot ghi đè "PASS" lên log đang ở mức SUSPICIOUS/MONITORING
+                if (status.equals("PASS")
+                        && (currentStatus.equals("SUSPICIOUS") || currentStatus.equals("MONITORING"))) {
+                    // Giữ nguyên status lịch sử, không downgrade
+                } else {
+                    log.setStatus(status);
+                }
+
+                log.setScore(currentScore);
             }
         }
     }

@@ -39,6 +39,9 @@ public class LogEntry {
     /** Optional detailed description (from database, may be null) */
     private String description;
 
+    /** Flag indicating whether properties were modified after loaded */
+    private boolean isModified;
+
     /**
      * Creates a LogEntry with basic data from a log file or generator.
      * score / status / attackType will be set by SecurityBot later.
@@ -54,9 +57,13 @@ public class LogEntry {
         this.score = 0;
         this.status = "PASS";
         this.attackType = "NORMAL";
+        this.isModified = false;
     }
 
     // ===================== GETTERS =====================
+
+    /** @return true if log has been modified by bot since creation */
+    public boolean isModified() { return isModified; }
 
     /** @return Database row ID */
     public int getId() { return id; }
@@ -85,13 +92,28 @@ public class LogEntry {
     // ===================== SETTERS =====================
 
     /** Sets the risk score (called by SecurityBot). */
-    public void setScore(int score) { this.score = score; }
+    public void setScore(int score) { 
+        if (this.score != score) {
+            this.score = score;
+            this.isModified = true;
+        }
+    }
 
     /** Sets the status label (called by SecurityBot). */
-    public void setStatus(String status) { this.status = status; }
+    public void setStatus(String status) { 
+        if (this.status == null || !this.status.equals(status)) {
+            this.status = status;
+            this.isModified = true;
+        }
+    }
 
     /** Sets the attack type (called by SecurityBot). */
-    public void setAttackType(String attackType) { this.attackType = attackType; }
+    public void setAttackType(String attackType) { 
+        if (this.attackType == null || !this.attackType.equals(attackType)) {
+            this.attackType = attackType;
+            this.isModified = true;
+        }
+    }
 
     /** Sets the database row ID. */
     public void setId(int id) { this.id = id; }
