@@ -114,7 +114,6 @@ async function loadLogs() {
 document.addEventListener('DOMContentLoaded', () => {
     loadLogs();
 
-    // [FIX LỖI 10] Tăng từ 1000ms lên 5000ms để giảm tải backend
     // /analyze phải chạy SecurityBot.analyze() + DB read mỗi lần gọi
     setInterval(() => {
         loadLogs();

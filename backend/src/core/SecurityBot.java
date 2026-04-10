@@ -21,7 +21,7 @@ public class SecurityBot {
      * @param logs        List of network log events (LogEntry).
      * @param alertSystem AlertSystem used to emit alert messages.
      */
-    public void analyze(List<LogEntry> logs, AlertSystem alertSystem) {
+    public synchronized void analyze(List<LogEntry> logs, AlertSystem alertSystem) {
 
         LogAnalyzer analyzer = new LogAnalyzer();
 
@@ -86,27 +86,18 @@ public class SecurityBot {
                 int level = history + 1;
                 dangerHistory.put(ip, level);
 
-                String message;
-
                 if (riskScore >= 45) {
                     firewall.blockIP(ip);
                     status = "BLOCKED";
-                    message = "🚨 CRITICAL " + attackType + " IP " + ip
-                            + " | Risk Score: " + riskScore
-                            + " | IP BLOCKED";
 
                 } else if (riskScore >= 30) {
                     status = "MONITORING";
-                    message = "🔴 HIGH RISK " + attackType + " IP " + ip
-                            + " | Risk Score: " + riskScore;
 
                 } else {
                     status = "SUSPICIOUS";
-                    message = "⚠ Suspicious " + attackType + " IP " + ip
-                            + " | Risk Score: " + riskScore;
                 }
 
-                alertSystem.addAlert(message);
+                alertSystem.addAlert(ip, attackType, riskScore, status);
             }
 
             // Step 6: Apply score, status, attackType to all matching log entries

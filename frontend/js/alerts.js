@@ -83,7 +83,7 @@ async function loadAlerts() {
 async function blockIP(ip) {
     if (!confirm('Xác nhận BLOCK IP: ' + ip + ' ?')) return;
     try {
-        const response = await fetch('http://localhost:8080/api/block', {
+        const response = await fetch('http://192.168.1.8/api/block', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ip: ip })

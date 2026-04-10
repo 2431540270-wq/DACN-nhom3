@@ -41,6 +41,18 @@ CREATE TABLE IF NOT EXISTS logs (
     -- Mô tả chi tiết (tùy chọn)
     description TEXT
 );
+-- Tạo bảng alerts
+-- Bảng này lưu toàn bộ cảnh báo mà hệ thông ghi nhận
+CREATE TABLE alerts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ip_address VARCHAR(45) NOT NULL,
+    attack_type VARCHAR(50),
+    risk_score INT,
+    alert_level VARCHAR(20),
+    message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) DEFAULT 'NEW'
+);
 
 -- 4. TẠO INDEX ĐỂ TÌM KIẾM NHANH
 -- Index giống như Mục lục sách: tìm theo IP hoặc thời gian sẽ nhanh hơn rất nhiều

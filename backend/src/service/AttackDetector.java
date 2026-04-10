@@ -48,9 +48,8 @@ public class AttackDetector {
             int count = loginFailMap.get(ip);
             if (count >= LOGIN_FAIL_THRESHOLD) {
                 detected.put(ip, "BRUTE_FORCE");
-                String msg = "🚨 IP " + ip
-                        + " suspected BRUTE_FORCE (" + count + " LOGIN_FAIL)";
-                alert.addAlert(msg);
+                // riskScore estimate: mỗi LOGIN_FAIL cộng 10 điểm (theo công thức SecurityBot)
+                alert.addAlert(ip, "BRUTE_FORCE", count * 10, "SUSPICIOUS");
             }
         }
 
@@ -59,9 +58,8 @@ public class AttackDetector {
             int count = requestMap.get(ip);
             if (count >= REQUEST_THRESHOLD) {
                 detected.put(ip, "REQUEST_FLOOD");
-                String msg = "⚠ IP " + ip
-                        + " abnormal REQUEST volume (" + count + " requests)";
-                alert.addAlert(msg);
+                // riskScore estimate: mỗi REQUEST cộng 5 điểm (theo công thức SecurityBot)
+                alert.addAlert(ip, "REQUEST_FLOOD", count * 5, "SUSPICIOUS");
             }
         }
 

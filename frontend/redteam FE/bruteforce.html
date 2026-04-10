@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brute Force Attack</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">Attack Tool</div>
+        <ul class="nav-links">
+            <li><a href="reddash.html">Giới thiệu</a></li>
+            <li><a href="bruteforce.html" class="active">Brute Force</a></li>
+            <li><a href="requestflood.html">Request Flood</a></li>
+        </ul>
+        <div style="margin-top:auto; padding:20px; font-size:0.8rem;">
+            Web tool demo
+        </div>
+    </div>
+
+    <!-- Main -->
+    <div class="main-content">
+        <header>
+            <h1>Brute Force Attack</h1>
+        </header>
+
+        <div class="attack-container">
+            <button onclick="attackOnce()">Attack 1 lần</button>
+            <button onclick="attackLoop()">Attack liên tục</button>
+            <button onclick="stopAttack()">Dừng</button>
+
+            <div id="logBox" class="log-box">
+                <p>Log sẽ hiển thị tại đây...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        let interval;
+
+        function addLog(text) {
+            const box = document.getElementById("logBox");
+            const time = new Date().toLocaleTimeString();
+
+            const p = document.createElement("p");
+            p.textContent = `[${time}] ${text}`;
+            box.appendChild(p);
+
+            // Giữ tối đa 50 dòng
+            if (box.children.length > 50) {
+                box.removeChild(box.firstChild);
+            }
+
+            box.scrollTop = box.scrollHeight;
+        }
+
+        // Attack 1 lần
+        function attackOnce() {
+            addLog("Đã gửi login_fail");
+            sendBruteForce();
+        }
+
+        // Attack liên tục
+        function attackLoop() {
+            if (interval) return;
+            addLog("Bắt đầu brute force...");
+            interval = setInterval(async () => {
+                try {
+                    await sendBruteForce();
+                    addLog("Đã gửi login_fail");
+                } catch {
+                    clearInterval(interval);
+                    interval = null;
+                    addLog("Đã bị block - dừng attack");
+                }
+            }, 1000);
+        }
+
+        // Dừng
+        function stopAttack() {
+            clearInterval(interval);
+            interval = null;
+            addLog("Đã dừng attack");
+        }
+
+        // Check block
+        setInterval(async () => {
+            const data = await checkBlock();
+            if (data.blocked) {
+                window.location.href = "403.html";
+            }
+        }, 1000);
+    </script>
+    <script src="js/api.js"></script>
+    <script src="js/attack.js"></script>
+    <button onclick="attackOnce(sendBruteForce, 'login_fail')">Attack 1 lần</button>
+    <button onclick="attackLoop(sendBruteForce, 'bruteforce')">Attack liên tục</button>
+    <button onclick="stopAttack()">Dừng</button>
+</body>
+</html>

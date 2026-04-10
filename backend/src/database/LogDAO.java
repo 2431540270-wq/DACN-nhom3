@@ -312,4 +312,31 @@ public class LogDAO {
                 return 0;
         }
     }
+    /**
+     * [BUG 8 FIX] Cập nhật trạng thái BLOCKED → PASS cho tất cả log của IP trong DB.
+     *
+     * Được gọi khi admin gỡ chặn IP từ /api/unblock.
+     * Nếu không có bước này, sau khi restart server, getBlockedIPs() sẽ đọc lại
+     * status BLOCKED từ DB và re-block IP vừa được gỡ.
+     *
+     * @param ip IP address cần gỡ chặn trong DB
+     * @return Số rows được cập nhật
+     */
+    public int unblockInDB(String ip) {
+        String sql = "UPDATE logs SET status = 'PASS', attack_type = 'NORMAL' "
+                   + "WHERE ip_address = ? AND status = 'BLOCKED'";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, ip);
+            int rows = stmt.executeUpdate();
+            System.out.println("[DB] unblockInDB: Updated " + rows + " row(s) for IP: " + ip);
+            return rows;
+
+        } catch (SQLException e) {
+            System.err.println("[DB] unblockInDB error: " + e.getMessage());
+            return 0;
+        }
+    }
 }

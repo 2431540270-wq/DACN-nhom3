@@ -163,11 +163,16 @@ public class DatabaseConnection {
      * Between pings, returns the cached value to avoid flooding the DB with connections
      * when API endpoints call isAvailable() on every request.
      *
-     * If the ping fails, isAvailable is set to false and the next call will return false
-     * immediately (without another ping attempt) until testConnection() is called again.
+     * [BUG 6 FIX] Nếu testConnection() chưa bao giờ được gọi, tự gọi nó thay vì
+     * trả sẵn false mà không thử. Tránh false-negative khi class dùng sai thứ tự.
      */
     public static synchronized boolean isAvailable() {
-        // If never connected — fast fail, no ping needed
+        // [BUG 6 FIX] Nếu chưa test lần nào → tự khởi tạo
+        if (!connectionTested) {
+            testConnection();
+        }
+
+        // Nếu DB đã được xác nhận không khả dụng → fast fail
         if (!isAvailable) return false;
 
         long now = System.currentTimeMillis();

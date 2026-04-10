@@ -338,6 +338,12 @@ public class ApiServer {
                 }
 
                 bot.getFirewall().unblockIP(ip);
+
+                // [BUG 8 FIX] Persist vào DB để tránh re-block sau khi restart
+                if (DatabaseConnection.isAvailable()) {
+                    logDAO.unblockInDB(ip);
+                }
+
                 System.out.println("[API /unblock] Unblocked IP: " + ip);
                 sendJson(exchange, "{\"success\":true,\"message\":\"Unblocked IP " + escapeJson(ip) + "\"}");
 
@@ -347,10 +353,102 @@ public class ApiServer {
             }
         });
 
+        // ============================================================
+        // ENDPOINT 7: POST /api/attack/bruteforce  [BUG 2 FIX — Red Team]
+        // ============================================================
+        server.createContext("/api/attack/bruteforce", (HttpExchange exchange) -> {
+            try {
+                if (handleCors(exchange)) return;
+
+                // Lấy IP của máy gọi (Red Team client)
+                String attackerIP = exchange.getRemoteAddress().getAddress().getHostAddress();
+
+                // Nếu IP đã bị block → trả 403
+                if (bot.getFirewall().isBlocked(attackerIP)) {
+                    byte[] err = "{\"blocked\":true,\"message\":\"Your IP is blocked\"}"
+                            .getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(403, err.length);
+                    try (OutputStream os = exchange.getResponseBody()) { os.write(err); }
+                    System.out.println("[API /attack/bruteforce] BLOCKED IP tried: " + attackerIP);
+                    return;
+                }
+
+                // Ghi 1 log LOGIN_FAIL vào DB
+                if (DatabaseConnection.isAvailable()) {
+                    String time = java.time.LocalDateTime.now()
+                            .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                    model.LogEntry attackLog = new model.LogEntry(time, attackerIP, "LOGIN_FAIL");
+                    attackLog.setStatus("SUSPICIOUS");
+                    attackLog.setAttackType("BRUTE_FORCE");
+                    logDAO.insertLog(attackLog);
+                }
+
+                System.out.println("[API /attack/bruteforce] LOGIN_FAIL from: " + attackerIP);
+                sendJson(exchange, "{\"success\":true,\"action\":\"LOGIN_FAIL\",\"ip\":\"" + escapeJson(attackerIP) + "\"}");
+
+            } catch (Exception e) {
+                System.err.println("[API /attack/bruteforce] ERROR: " + e.getMessage());
+            }
+        });
+
+        // ============================================================
+        // ENDPOINT 8: POST /api/attack/flood  [BUG 2 FIX — Red Team]
+        // ============================================================
+        server.createContext("/api/attack/flood", (HttpExchange exchange) -> {
+            try {
+                if (handleCors(exchange)) return;
+
+                String attackerIP = exchange.getRemoteAddress().getAddress().getHostAddress();
+
+                if (bot.getFirewall().isBlocked(attackerIP)) {
+                    byte[] err = "{\"blocked\":true,\"message\":\"Your IP is blocked\"}"
+                            .getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(403, err.length);
+                    try (OutputStream os = exchange.getResponseBody()) { os.write(err); }
+                    System.out.println("[API /attack/flood] BLOCKED IP tried: " + attackerIP);
+                    return;
+                }
+
+                // Ghi 1 log REQUEST vào DB
+                if (DatabaseConnection.isAvailable()) {
+                    String time = java.time.LocalDateTime.now()
+                            .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                    model.LogEntry attackLog = new model.LogEntry(time, attackerIP, "REQUEST");
+                    attackLog.setStatus("PASS");
+                    attackLog.setAttackType("REQUEST_FLOOD");
+                    logDAO.insertLog(attackLog);
+                }
+
+                System.out.println("[API /attack/flood] REQUEST from: " + attackerIP);
+                sendJson(exchange, "{\"success\":true,\"action\":\"REQUEST\",\"ip\":\"" + escapeJson(attackerIP) + "\"}");
+
+            } catch (Exception e) {
+                System.err.println("[API /attack/flood] ERROR: " + e.getMessage());
+            }
+        });
+
+        // ============================================================
+        // ENDPOINT 9: GET /api/check-block  [BUG 2 FIX — Red Team]
+        // ============================================================
+        server.createContext("/api/check-block", (HttpExchange exchange) -> {
+            try {
+                if (handleCors(exchange)) return;
+
+                String callerIP = exchange.getRemoteAddress().getAddress().getHostAddress();
+                boolean isBlocked = bot.getFirewall().isBlocked(callerIP);
+
+                System.out.println("[API /check-block] IP: " + callerIP + " blocked=" + isBlocked);
+                sendJson(exchange, "{\"blocked\":" + isBlocked + ",\"ip\":\"" + escapeJson(callerIP) + "\"}");
+
+            } catch (Exception e) {
+                System.err.println("[API /check-block] ERROR: " + e.getMessage());
+            }
+        });
+
         server.start();
         System.out.println("   API Server running at http://localhost:8080");
-        System.out
-                .println("   Endpoints: /api/analyze, /api/logs, /api/alerts, /api/blocked, /api/block, /api/unblock");
+        System.out.println("   Blue Team: /api/analyze, /api/logs, /api/alerts, /api/blocked, /api/block, /api/unblock");
+        System.out.println("   Red Team:  /api/attack/bruteforce, /api/attack/flood, /api/check-block");
         System.out.println(
                 "   Data source: " + (DatabaseConnection.isAvailable() ? "MySQL Database" : "File text (fallback)"));
     }
