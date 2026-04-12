@@ -14,9 +14,9 @@
     <div class="sidebar">
         <div class="sidebar-header">Attack Tool</div>
         <ul class="nav-links">
-            <li><a href="reddash.html">Giới thiệu</a></li>
-            <li><a href="bruteforce.html">Brute Force</a></li>
-            <li><a href="requestflood.html" class="active">Request Flood</a></li>
+            <li><a href="reddash.html">Giới thiệu về tool</a></li>
+            <li><a href="bruteforce.html">Brute Force Attack</a></li>
+            <li><a href="requestflood.html" class="active">Request Flood Attack</a></li>
         </ul>
         <div style="margin-top:auto; padding:20px; font-size:0.8rem;">
             Web tool demo
@@ -95,12 +95,10 @@
             if (data.blocked) {
                 window.location.href = "403.html";
             }
-        },1000);
+        }, 1000);
     </script>
     <script src="js/api.js"></script>
     <script src="js/attack.js"></script>
-    <button onclick="attackOnce(sendRequestFlood, 'request')">Gửi 1 request</button>
-    <button onclick="attackLoop(sendRequestFlood, 'flood')">Flood liên tục</button>
-    <button onclick="stopAttack()">Dừng</button>
 </body>
+
 </html>
