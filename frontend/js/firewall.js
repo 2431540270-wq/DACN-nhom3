@@ -50,7 +50,7 @@ async function loadFirewall() {
 
 /**
  * executeBlock — Chặn IP thủ công, gọi API POST /api/block thật.
- * [FIX LỖI 12] Thay thế alert() placeholder bằng fetch API thật
+ * Thay thế alert() placeholder bằng fetch API thật
  */
 async function executeBlock() {
 
@@ -78,7 +78,7 @@ async function executeBlock() {
     }
 
     try {
-        const response = await fetch('http://192.168.1.8/api/block', {
+        const response = await fetch('http://192.168.1.8:8080/api/block', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ip: ip })
@@ -103,7 +103,7 @@ async function executeBlock() {
 async function unblock(ip) {
     if (!confirm('Xác nhận gỡ chặn IP: ' + ip + ' ?')) return;
     try {
-        const response = await fetch('http://192.168.1.8/api/unblock', {
+        const response = await fetch('http://192.168.1.8:8080/api/unblock', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ip: ip })
@@ -120,8 +120,8 @@ async function unblock(ip) {
     }
 }
 
-// [FIX LỖI 10] Thêm auto-refresh mỗi 5 giây
+//Auto-refresh mỗi 1 giây
 document.addEventListener('DOMContentLoaded', () => {
     loadFirewall();
-    setInterval(loadFirewall, 5000);
+    setInterval(loadFirewall, 1000);
 });

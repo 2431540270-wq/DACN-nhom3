@@ -83,7 +83,8 @@ public class SecurityBot {
             String status = "PASS";
 
             if (riskScore >= 15) {
-                int level = history + 1;
+                // Cap history at 10 to prevent runaway risk scores over long uptime
+                int level = Math.min(history + 1, 10);
                 dangerHistory.put(ip, level);
 
                 if (riskScore >= 45) {

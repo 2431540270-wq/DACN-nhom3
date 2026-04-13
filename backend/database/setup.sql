@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS logs (
 );
 -- Tạo bảng alerts
 -- Bảng này lưu toàn bộ cảnh báo mà hệ thông ghi nhận
-CREATE TABLE alerts (
+CREATE TABLE IF NOT EXISTS alerts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     ip_address VARCHAR(45) NOT NULL,
     attack_type VARCHAR(50),

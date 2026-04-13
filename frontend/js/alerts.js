@@ -1,7 +1,6 @@
 /**
  * alerts.js — Hiển thị danh sách cảnh báo bảo mật.
- *
- * [FIX LỖI 10] Tăng interval từ 1s lên 3s để giảm tải backend
+ * Đọc dữ liệu từ /api/alerts (lấy từ bảng alerts trong DB).
  */
 
 /**
@@ -83,7 +82,8 @@ async function loadAlerts() {
 async function blockIP(ip) {
     if (!confirm('Xác nhận BLOCK IP: ' + ip + ' ?')) return;
     try {
-        const response = await fetch('http://192.168.1.8/api/block', {
+        // Dùng API_BASE từ api.js để nhất quán — không hardcode URL
+        const response = await fetch(`${API_BASE}/block`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ip: ip })
@@ -95,8 +95,8 @@ async function blockIP(ip) {
     }
 }
 
-// [FIX LỖI 10] Tăng từ 1000ms lên 3000ms
-const alertsInterval = setInterval(loadAlerts, 3000);
+// 1s 1 lần
+const alertsInterval = setInterval(loadAlerts, 1000);
 
 document.addEventListener("DOMContentLoaded", loadAlerts);
 

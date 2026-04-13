@@ -19,7 +19,7 @@
  * Khi deploy thật (demo 2 máy), cần đổi localhost → IP máy Blue
  * Ví dụ: http://192.168.1.10:8080/api
  */
-const API_BASE = "http://192.168.1.8/api";
+const API_BASE = "http://192.168.1.8:8080/api";
 
 
 /**

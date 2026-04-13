@@ -13,7 +13,7 @@
 
 
 /** Địa chỉ backend (đổi thành IP máy Blue khi demo 2 máy) */
-const API_BASE = "http://192.168.1.8/api";
+const API_BASE = "http://192.168.1.8:8080/api";
 
 
 /**

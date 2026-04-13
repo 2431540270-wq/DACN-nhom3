@@ -70,7 +70,9 @@ public class ApiServer {
                 if (handleCors(exchange))
                     return;
 
-                // Priority 1: read from database
+                // Read latest logs from DB / file — do NOT call bot.analyze() here.
+                // RealTimeMonitor already runs analyze() every 2s in its own thread.
+                // Calling analyze() here again would cause dangerHistory to double-accumulate.
                 if (DatabaseConnection.isAvailable()) {
                     logs = logDAO.getAllLogs();
                     System.out.println("[API /analyze] Source: DATABASE — " + logs.size() + " row(s)");
@@ -81,15 +83,6 @@ public class ApiServer {
                     if (logs == null)
                         logs = new ArrayList<>();
                     System.out.println("[API /analyze] Source: FILE — " + logs.size() + " row(s)");
-                }
-
-                // Run SecurityBot analysis (adds new alerts; does NOT clear old ones)
-                bot.analyze(logs, alertSystem);
-
-                // Persist updated attack_type/status back to DB so that
-                // the next /api/logs call returns the analysed values, not stale "NORMAL".
-                if (DatabaseConnection.isAvailable()) {
-                    logDAO.updateLogs(logs);
                 }
 
                 // Use DB total count for the response (more accurate than logs.size())
@@ -107,7 +100,6 @@ public class ApiServer {
                     for (LogEntry l : logs) {
                         totalRisk += l.getScore();
                     }
-                    // Average over the loaded sample (100 rows), not over all DB rows
                     riskAvg = Math.round((double) totalRisk / logs.size() * 10.0) / 10.0;
                 }
 
@@ -176,75 +168,72 @@ public class ApiServer {
                 if (handleCors(exchange))
                     return;
 
-                List<String> alerts = alertSystem.getAlerts();
-                System.out.println("[API /alerts] " + alerts.size() + " alert(s)");
-
                 StringBuilder json = new StringBuilder("[");
-                for (int i = 0; i < alerts.size(); i++) {
-                    String alert = alerts.get(i);
 
-                    String level = "LOW";
-                    String attack = "UNKNOWN";
-                    String ip = "0.0.0.0";
-                    int score = 10;
+                if (DatabaseConnection.isAvailable()) {
+                    // PRIMARY: Read structured data directly from the alerts table in DB.
+                    // This is cleaner than parsing raw strings from the in-memory list.
+                    List<java.util.Map<String, Object>> dbAlerts = logDAO.getAlertsFromDB();
+                    System.out.println("[API /alerts] " + dbAlerts.size() + " alert(s) from DB");
 
-                    if (alert.contains("🚨")) {
-                        level = "CRITICAL";
-                        score = 90;
-                    } else if (alert.contains("🔴")) {
-                        level = "HIGH";
-                        score = 70;
-                    } else if (alert.contains("⚠")) {
-                        level = "MEDIUM";
-                        score = 50;
+                    for (int i = 0; i < dbAlerts.size(); i++) {
+                        java.util.Map<String, Object> a = dbAlerts.get(i);
+                        json.append("{")
+                                .append("\"time\":\"").append(escapeJson(String.valueOf(a.get("time")))).append("\",")
+                                .append("\"level\":\"").append(escapeJson(String.valueOf(a.get("level")))).append("\",")
+                                .append("\"attack\":\"").append(escapeJson(String.valueOf(a.get("attack")))).append("\",")
+                                .append("\"ip\":\"").append(escapeJson(String.valueOf(a.get("ip")))).append("\",")
+                                .append("\"score\":").append(a.get("score"))
+                                .append("}");
+                        if (i < dbAlerts.size() - 1)
+                            json.append(",");
                     }
 
-                    if (alert.contains("BRUTE_FORCE"))
-                        attack = "BRUTE_FORCE";
-                    else if (alert.contains("REQUEST_FLOOD"))
-                        attack = "REQUEST_FLOOD";
-                    else if (alert.contains("LOGIN_FAIL"))
-                        attack = "BRUTE_FORCE";
-                    else if (alert.contains("REQUEST"))
-                        attack = "REQUEST_FLOOD";
-                    else if (level.equals("CRITICAL"))
-                        attack = "BRUTE_FORCE";
-                    else if (level.equals("HIGH"))
-                        attack = "REQUEST_FLOOD";
-                    else
-                        attack = "DANGEROUS_ACTIVITY";
+                } else {
+                    // FALLBACK: Parse the in-memory alert strings when DB is unavailable.
+                    List<String> alerts = alertSystem.getAlerts();
+                    System.out.println("[API /alerts] " + alerts.size() + " alert(s) from memory (DB unavailable)");
 
-                    // Extract IP using simple token scan
-                    String[] parts = alert.split(" ");
-                    for (String p : parts) {
-                        if (p.matches("\\d+\\.\\d+\\.\\d+\\.\\d+")) {
-                            ip = p;
+                    for (int i = 0; i < alerts.size(); i++) {
+                        String alert = alerts.get(i);
+
+                        String level = "LOW";
+                        String attack = "UNKNOWN";
+                        String ip = "0.0.0.0";
+                        int score = 10;
+
+                        if (alert.contains("🚨")) { level = "CRITICAL"; score = 90; }
+                        else if (alert.contains("🔴")) { level = "HIGH"; score = 70; }
+                        else if (alert.contains("⚠")) { level = "MEDIUM"; score = 50; }
+
+                        if (alert.contains("BRUTE_FORCE")) attack = "BRUTE_FORCE";
+                        else if (alert.contains("REQUEST_FLOOD")) attack = "REQUEST_FLOOD";
+                        else if (level.equals("CRITICAL")) attack = "BRUTE_FORCE";
+                        else if (level.equals("HIGH")) attack = "REQUEST_FLOOD";
+                        else attack = "DANGEROUS_ACTIVITY";
+
+                        for (String p : alert.split(" ")) {
+                            if (p.matches("\\d+\\.\\d+\\.\\d+\\.\\d+")) { ip = p; }
                         }
-                    }
 
-                    // Extract timestamp between [ and ]
-                    String time = "";
-                    if (alert.contains("]")) {
-                        int startIdx = alert.indexOf("[");
-                        int endIdx = alert.indexOf("]");
-                        if (startIdx >= 0 && endIdx > startIdx) {
-                            time = alert.substring(startIdx + 1, endIdx);
+                        String time = "";
+                        if (alert.contains("]")) {
+                            int s = alert.indexOf("["), e = alert.indexOf("]");
+                            if (s >= 0 && e > s) time = alert.substring(s + 1, e);
                         }
+
+                        json.append("{")
+                                .append("\"time\":\"").append(escapeJson(time)).append("\",")
+                                .append("\"level\":\"").append(escapeJson(level)).append("\",")
+                                .append("\"attack\":\"").append(escapeJson(attack)).append("\",")
+                                .append("\"ip\":\"").append(escapeJson(ip)).append("\",")
+                                .append("\"score\":").append(score)
+                                .append("}");
+                        if (i < alerts.size() - 1) json.append(",");
                     }
-
-                    json.append("{")
-                            .append("\"time\":\"").append(escapeJson(time)).append("\",")
-                            .append("\"level\":\"").append(escapeJson(level)).append("\",")
-                            .append("\"attack\":\"").append(escapeJson(attack)).append("\",")
-                            .append("\"ip\":\"").append(escapeJson(ip)).append("\",")
-                            .append("\"score\":").append(score)
-                            .append("}");
-
-                    if (i < alerts.size() - 1)
-                        json.append(",");
                 }
-                json.append("]");
 
+                json.append("]");
                 sendJson(exchange, json.toString());
 
             } catch (Exception e) {
@@ -354,11 +343,12 @@ public class ApiServer {
         });
 
         // ============================================================
-        // ENDPOINT 7: POST /api/attack/bruteforce  [BUG 2 FIX — Red Team]
+        // ENDPOINT 7: POST /api/attack/bruteforce [BUG 2 FIX — Red Team]
         // ============================================================
         server.createContext("/api/attack/bruteforce", (HttpExchange exchange) -> {
             try {
-                if (handleCors(exchange)) return;
+                if (handleCors(exchange))
+                    return;
 
                 // Lấy IP của máy gọi (Red Team client)
                 String attackerIP = exchange.getRemoteAddress().getAddress().getHostAddress();
@@ -368,7 +358,9 @@ public class ApiServer {
                     byte[] err = "{\"blocked\":true,\"message\":\"Your IP is blocked\"}"
                             .getBytes(StandardCharsets.UTF_8);
                     exchange.sendResponseHeaders(403, err.length);
-                    try (OutputStream os = exchange.getResponseBody()) { os.write(err); }
+                    try (OutputStream os = exchange.getResponseBody()) {
+                        os.write(err);
+                    }
                     System.out.println("[API /attack/bruteforce] BLOCKED IP tried: " + attackerIP);
                     return;
                 }
@@ -384,7 +376,8 @@ public class ApiServer {
                 }
 
                 System.out.println("[API /attack/bruteforce] LOGIN_FAIL from: " + attackerIP);
-                sendJson(exchange, "{\"success\":true,\"action\":\"LOGIN_FAIL\",\"ip\":\"" + escapeJson(attackerIP) + "\"}");
+                sendJson(exchange,
+                        "{\"success\":true,\"action\":\"LOGIN_FAIL\",\"ip\":\"" + escapeJson(attackerIP) + "\"}");
 
             } catch (Exception e) {
                 System.err.println("[API /attack/bruteforce] ERROR: " + e.getMessage());
@@ -392,11 +385,12 @@ public class ApiServer {
         });
 
         // ============================================================
-        // ENDPOINT 8: POST /api/attack/flood  [BUG 2 FIX — Red Team]
+        // ENDPOINT 8: POST /api/attack/flood [BUG 2 FIX — Red Team]
         // ============================================================
         server.createContext("/api/attack/flood", (HttpExchange exchange) -> {
             try {
-                if (handleCors(exchange)) return;
+                if (handleCors(exchange))
+                    return;
 
                 String attackerIP = exchange.getRemoteAddress().getAddress().getHostAddress();
 
@@ -404,7 +398,9 @@ public class ApiServer {
                     byte[] err = "{\"blocked\":true,\"message\":\"Your IP is blocked\"}"
                             .getBytes(StandardCharsets.UTF_8);
                     exchange.sendResponseHeaders(403, err.length);
-                    try (OutputStream os = exchange.getResponseBody()) { os.write(err); }
+                    try (OutputStream os = exchange.getResponseBody()) {
+                        os.write(err);
+                    }
                     System.out.println("[API /attack/flood] BLOCKED IP tried: " + attackerIP);
                     return;
                 }
@@ -420,7 +416,8 @@ public class ApiServer {
                 }
 
                 System.out.println("[API /attack/flood] REQUEST from: " + attackerIP);
-                sendJson(exchange, "{\"success\":true,\"action\":\"REQUEST\",\"ip\":\"" + escapeJson(attackerIP) + "\"}");
+                sendJson(exchange,
+                        "{\"success\":true,\"action\":\"REQUEST\",\"ip\":\"" + escapeJson(attackerIP) + "\"}");
 
             } catch (Exception e) {
                 System.err.println("[API /attack/flood] ERROR: " + e.getMessage());
@@ -428,11 +425,12 @@ public class ApiServer {
         });
 
         // ============================================================
-        // ENDPOINT 9: GET /api/check-block  [BUG 2 FIX — Red Team]
+        // ENDPOINT 9: GET /api/check-block [BUG 2 FIX — Red Team]
         // ============================================================
         server.createContext("/api/check-block", (HttpExchange exchange) -> {
             try {
-                if (handleCors(exchange)) return;
+                if (handleCors(exchange))
+                    return;
 
                 String callerIP = exchange.getRemoteAddress().getAddress().getHostAddress();
                 boolean isBlocked = bot.getFirewall().isBlocked(callerIP);
@@ -446,8 +444,9 @@ public class ApiServer {
         });
 
         server.start();
-        System.out.println("   API Server running at http://localhost:8080");
-        System.out.println("   Blue Team: /api/analyze, /api/logs, /api/alerts, /api/blocked, /api/block, /api/unblock");
+        System.out.println("   API Server running at http://192.168.1.8:8080");
+        System.out
+                .println("   Blue Team: /api/analyze, /api/logs, /api/alerts, /api/blocked, /api/block, /api/unblock");
         System.out.println("   Red Team:  /api/attack/bruteforce, /api/attack/flood, /api/check-block");
         System.out.println(
                 "   Data source: " + (DatabaseConnection.isAvailable() ? "MySQL Database" : "File text (fallback)"));

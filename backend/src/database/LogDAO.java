@@ -339,4 +339,40 @@ public class LogDAO {
             return 0;
         }
     }
+    /**
+     * Retrieves the most recent 200 alert records from the alerts table.
+     *
+     * Used by /api/alerts endpoint as the primary data source (replaces the
+     * in-memory AlertSystem list so that alerts persist across restarts).
+     *
+     * @return List of Maps with keys: time, level, attack, ip, score
+     */
+    public List<java.util.Map<String, Object>> getAlertsFromDB() {
+        List<java.util.Map<String, Object>> result = new ArrayList<>();
+
+        String sql = "SELECT ip_address, attack_type, risk_score, alert_level, created_at "
+                   + "FROM alerts ORDER BY created_at DESC LIMIT 200";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+
+            while (rs.next()) {
+                java.util.Map<String, Object> alert = new java.util.LinkedHashMap<>();
+                alert.put("time",   rs.getString("created_at"));
+                alert.put("level",  rs.getString("alert_level"));
+                alert.put("attack", rs.getString("attack_type"));
+                alert.put("ip",     rs.getString("ip_address"));
+                alert.put("score",  rs.getInt("risk_score"));
+                result.add(alert);
+            }
+
+            System.out.println("[DB] getAlertsFromDB: Loaded " + result.size() + " alert(s)");
+
+        } catch (SQLException e) {
+            System.err.println("[DB] getAlertsFromDB error: " + e.getMessage());
+        }
+
+        return result;
+    }
 }

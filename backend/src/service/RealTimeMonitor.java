@@ -10,18 +10,20 @@ import java.util.List;
 /**
  * RealTimeMonitor — Multi-threaded log scanner that runs continuously.
  *
- * Implements Runnable so it can run on a separate thread alongside the API server.
- * Reads logs from the database (or falls back to file) every SCAN_INTERVAL_MS milliseconds,
+ * Implements Runnable so it can run on a separate thread alongside the API
+ * server.
+ * Reads logs from the database (or falls back to file) every SCAN_INTERVAL_MS
+ * milliseconds,
  * runs SecurityBot analysis, and persists the results back to the database.
  */
 public class RealTimeMonitor implements Runnable {
-    
+
     // Shared bot and alert system instances
     private SecurityBot bot;
     private AlertSystem alertSystem;
 
-    // Scan interval in milliseconds (3 seconds)
-    private static final int SCAN_INTERVAL_MS = 3000;
+    // Scan DB 2s một lần
+    private static final int SCAN_INTERVAL_MS = 2000;
 
     /**
      * Constructor: stores shared bot and alert system references.
@@ -38,7 +40,7 @@ public class RealTimeMonitor implements Runnable {
     @Override
     public void run() {
 
-        System.out.println("[RealTimeMonitor] Started. Scanning logs every 3s...");
+        System.out.println("[RealTimeMonitor] Started. Scanning logs every 2s...");
 
         LogReader reader = new LogReader();
         // [FIX LỖI 5] Khởi tạo LogDAO để đọc từ DB khi có kết nối
@@ -46,12 +48,13 @@ public class RealTimeMonitor implements Runnable {
 
         try {
             while (true) {
-                
+
                 try {
                     List<LogEntry> logs;
 
                     // Priority: read from DB; fallback to file ONLY if DB is unavailable.
-                    // Do NOT fallback to file when DB is empty — LogGenerator will populate it shortly.
+                    // Do NOT fallback to file when DB is empty — LogGenerator will populate it
+                    // shortly.
                     if (DatabaseConnection.isAvailable()) {
                         logs = logDAO.getAllLogs();
                         System.out.println("[Monitor] Read " + logs.size() + " log(s) from DATABASE");
@@ -74,7 +77,8 @@ public class RealTimeMonitor implements Runnable {
                         List<LogEntry> recent = logs.subList(start, logs.size());
                         System.out.println("--- Last 5 Log Entries ---");
                         for (LogEntry l : recent) {
-                            System.out.println(l.getTime() + " | IP: " + l.getIp() + " | Attack: " + l.getAttackType() + " | Risk: " + l.getScore());
+                            System.out.println(l.getTime() + " | IP: " + l.getIp() + " | Attack: " + l.getAttackType()
+                                    + " | Risk: " + l.getScore());
                         }
                     } else {
                         System.out.println("[Monitor] No logs available yet.");
