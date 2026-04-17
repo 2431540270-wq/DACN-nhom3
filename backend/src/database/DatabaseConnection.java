@@ -122,7 +122,12 @@ public class DatabaseConnection {
             { "attack_type",
               "ALTER TABLE logs ADD COLUMN attack_type VARCHAR(50) NOT NULL DEFAULT 'NORMAL' AFTER status" },
             { "description",
-              "ALTER TABLE logs ADD COLUMN description TEXT AFTER attack_type" }
+              "ALTER TABLE logs ADD COLUMN description TEXT AFTER attack_type" },
+            // [FIX] Thêm cột score để lưu riskScore THẬT (không dùng calculateScoreFromStatus giả nữa).
+            // Trước đây: score luôn = 30 với SUSPICIOUS dù SecurityBot tính ra 15 hay 20.
+            // Sau fix: score = giá trị thực, nhất quán giữa Monitor page và Alerts page.
+            { "score",
+              "ALTER TABLE logs ADD COLUMN score INT DEFAULT 0 AFTER attack_type" }
         };
 
         try (Connection conn = getConnection();

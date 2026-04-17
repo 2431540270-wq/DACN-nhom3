@@ -10,63 +10,52 @@
 
 async function refreshMonitorLogs() {
 
-    // Thằng Grab Nhận Hàng Đi Gọi Đồ Ăn Cho Admin Về (Dữ liệu Raw Java Text 100 Cuốn).
     const logs = await fetchData('/logs');
 
     const tbody = document.getElementById('monitor-table-body');
 
-    // Mất Cửa Sổ Table Để Gói Xôi Lá Chuối Ở Đâu Hả Browser? (Về Cốt Khỏi Chạy Lỗi Chết Mã Bị Phốt Null Trên Đóm Chrome Error) 
     if (!tbody) return;
     if (!logs || !Array.isArray(logs)) return;
 
-    // Xé Toạc Lớp Vỏ Dối Trá Table Cũ Kĩ Rác Trước. Vẽ Màn Hình Phẳng Vị! Trắng Sáng Nhất !
     tbody.innerHTML = '';
 
-    // Guard (Rào Trắng Khác Bọt): Tránh Cảnh Web Trống Huơ Trống Hoác Khi Không Có Data.
     if (logs.length === 0) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">
-                    Biển Log Đang Êm Đềm Chưa Lên Khúc Giao Mùa Đâu Bạn MÌNH! Gõ Lệnh Chơi Bời Gì Vô Chưa...
+                Đang chờ nhận dữ liệu
                 </td>
             </tr>
         `;
         return;
     }
 
-    // Cò Lết Bới Đống Rác Thơm Thơm Lộn Nồi
     logs.forEach(log => {
 
-        // Phòng Hỡ Củi Trống Thiếu Cửa Tắt Máy! Dốt Toán Học Trả 0. Trống Nhãn Gài "PASS" (Đỗ Pass An Toàn Sinh Viên Khách Bến Vắng)
         const risk = log.score || 0;
         const status = log.status || "PASS";
 
-        // Logic CSS TO THE TOP: KỸ THUẬT RẼ NHÁNH IF-ELSE Chuyển Số Nguyên Toán Học -> Trạng Thái Chữ Giao Diện Web CSS Rẽ Quạt!
-        // Nếu risk Của Mày Lên > 80 (Bị Khóa Đít Rồi)? Ồ Tốt. Ta gắn Áo Số "Critical Đỏ Hoành Tráng Nhấp Nháy Hú CÒI" CSS Mặc Cho Mày Khoác Gánh!
-        let severity = "severity-low"; // Giả Ngoan Bọc áo Xanh Chanh Dân Nghèo Mặc Định Lúc Đầu Cút
+        let severity = "severity-low";
 
-        if (risk >= 80) severity = "severity-critical";
-        else if (risk >= 50) severity = "severity-high";
-        else if (risk >= 20) severity = "severity-medium";
+        // Ngưỡng khớp với SecurityBot: 15=SUSPICIOUS, 30=MONITORING, 45=BLOCKED
+        if (risk >= 45) severity = "severity-critical";
+        else if (risk >= 30) severity = "severity-high";
+        else if (risk >= 15) severity = "severity-medium";
 
-        // JS Gõ Vào Não Browser: "Nhớ Đẻ Cho Em Thẻ <tr> Cha Nha A Trình Duyệt"
         const row = document.createElement('tr');
 
-        // Animation Đỉnh Khao CSS Nhấp Chớp Ở Dây Là Khúc Này!!! (Đẩy Cho Table Đẹp Mê Man Điểm Số Tốt Web)
         if (severity === "severity-critical") {
-            // CSS `.row-critical` Sẽ CÓ TÍNH CHẤT Làm Màn Nền Dòng Rực ĐỎ Mờ - Lóa Nhấp Nháy! Xéo Chữ!
             row.classList.add("row-critical");
         }
         if (severity === "severity-medium") {
-            row.classList.add("row-warning"); // Warning Thì Vàng Óng Chói Khựa Bền Viền!
+            row.classList.add("row-warning");
         }
 
-        // Vẽ class badge cho attack type tuân theo CSS chung nếu có
         let attackBadgeClass = "status-badge";
         if (log.attack === "BRUTE_FORCE") attackBadgeClass += " severity-critical";
         else if (log.attack === "REQUEST_FLOOD") attackBadgeClass += " severity-high";
         else if (log.attack === "UNKNOWN_ATTACK") attackBadgeClass += " severity-medium";
-        
+
         row.innerHTML = `
         <td>${log.time || '-'}</td>
         <td><strong>${log.ip || 'N/A'}</strong></td>
@@ -80,13 +69,11 @@ async function refreshMonitorLogs() {
         </td>
         `;
 
-        tbody.appendChild(row); // Append là Nhét Thêm Cục Lego <tr> Giữa Cái Lõng Thùng Cái Bàn Lớn Tbody
+        tbody.appendChild(row);
     });
 
-    // Cuối Cùng Dành Tặng Điễm Tín Nghĩa Lịch Sự - Vẽ Con Số Cái Tích Tắc Đồng Hồ Vào DIV Phía Đáy Gốc Khung Rạch
     const indicator = document.getElementById('update-indicator');
     if (indicator) {
-        // Gắn Bộ Số Địa Phương Cấp Phá Vòng Clock Cho Máy Này Lại (21:30:11)
         const now = new Date().toLocaleTimeString('vi-VN');
         indicator.innerHTML = `● Hệ thống đang giám sát lưu lượng mạng theo thời gian thực: [${now}]`;
     }

@@ -181,7 +181,8 @@ public class ApiServer {
                         json.append("{")
                                 .append("\"time\":\"").append(escapeJson(String.valueOf(a.get("time")))).append("\",")
                                 .append("\"level\":\"").append(escapeJson(String.valueOf(a.get("level")))).append("\",")
-                                .append("\"attack\":\"").append(escapeJson(String.valueOf(a.get("attack")))).append("\",")
+                                .append("\"attack\":\"").append(escapeJson(String.valueOf(a.get("attack"))))
+                                .append("\",")
                                 .append("\"ip\":\"").append(escapeJson(String.valueOf(a.get("ip")))).append("\",")
                                 .append("\"score\":").append(a.get("score"))
                                 .append("}");
@@ -202,24 +203,39 @@ public class ApiServer {
                         String ip = "0.0.0.0";
                         int score = 10;
 
-                        if (alert.contains("🚨")) { level = "CRITICAL"; score = 90; }
-                        else if (alert.contains("🔴")) { level = "HIGH"; score = 70; }
-                        else if (alert.contains("⚠")) { level = "MEDIUM"; score = 50; }
+                        if (alert.contains("🚨")) {
+                            level = "CRITICAL";
+                            score = 90;
+                        } else if (alert.contains("🔴")) {
+                            level = "HIGH";
+                            score = 70;
+                        } else if (alert.contains("⚠")) {
+                            level = "MEDIUM";
+                            score = 50;
+                        }
 
-                        if (alert.contains("BRUTE_FORCE")) attack = "BRUTE_FORCE";
-                        else if (alert.contains("REQUEST_FLOOD")) attack = "REQUEST_FLOOD";
-                        else if (level.equals("CRITICAL")) attack = "BRUTE_FORCE";
-                        else if (level.equals("HIGH")) attack = "REQUEST_FLOOD";
-                        else attack = "DANGEROUS_ACTIVITY";
+                        if (alert.contains("BRUTE_FORCE"))
+                            attack = "BRUTE_FORCE";
+                        else if (alert.contains("REQUEST_FLOOD"))
+                            attack = "REQUEST_FLOOD";
+                        else if (level.equals("CRITICAL"))
+                            attack = "BRUTE_FORCE";
+                        else if (level.equals("HIGH"))
+                            attack = "REQUEST_FLOOD";
+                        else
+                            attack = "DANGEROUS_ACTIVITY";
 
                         for (String p : alert.split(" ")) {
-                            if (p.matches("\\d+\\.\\d+\\.\\d+\\.\\d+")) { ip = p; }
+                            if (p.matches("\\d+\\.\\d+\\.\\d+\\.\\d+")) {
+                                ip = p;
+                            }
                         }
 
                         String time = "";
                         if (alert.contains("]")) {
                             int s = alert.indexOf("["), e = alert.indexOf("]");
-                            if (s >= 0 && e > s) time = alert.substring(s + 1, e);
+                            if (s >= 0 && e > s)
+                                time = alert.substring(s + 1, e);
                         }
 
                         json.append("{")
@@ -229,7 +245,8 @@ public class ApiServer {
                                 .append("\"ip\":\"").append(escapeJson(ip)).append("\",")
                                 .append("\"score\":").append(score)
                                 .append("}");
-                        if (i < alerts.size() - 1) json.append(",");
+                        if (i < alerts.size() - 1)
+                            json.append(",");
                     }
                 }
 
@@ -326,6 +343,10 @@ public class ApiServer {
                     return;
                 }
 
+                // Xóa dangerHistory TRƯỚC KHI gỡ block khỏi Firewall
+                // Nếu không xóa, analyze() (chạy mỗi 2s) sẽ tính lại riskScore cao
+                // từ lịch sử và re-block IP ngay lập tức sau khi gỡ!
+                bot.clearHistory(ip);
                 bot.getFirewall().unblockIP(ip);
 
                 // [BUG 8 FIX] Persist vào DB để tránh re-block sau khi restart

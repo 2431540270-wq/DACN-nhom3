@@ -38,6 +38,10 @@ CREATE TABLE IF NOT EXISTS logs (
     -- Loại tấn công: NORMAL, BRUTE_FORCE, REQUEST_FLOOD
     attack_type VARCHAR(50) DEFAULT 'NORMAL',
 
+    -- Điểm rủi ro thực tế do SecurityBot tính (0-100+)
+    -- Lưu score THẬT thay vì tính ngược từ status (calculateScoreFromStatus là giả)
+    score INT DEFAULT 0,
+
     -- Mô tả chi tiết (tùy chọn)
     description TEXT
 );
@@ -97,38 +101,49 @@ SELECT * FROM logs ORDER BY timestamp DESC;
 
 USE security_logs;
 
-DROP PROCEDURE IF EXISTS add_column_if_missing;
+DROP PROCEDURE IF EXISTS migrate_logs_columns;
 
 DELIMITER $$
 
-CREATE PROCEDURE add_column_if_missing()
+CREATE PROCEDURE migrate_logs_columns()
 BEGIN
-    -- Kiểm tra xem cột attack_type đã tồn tại trong bảng logs chưa
+    -- Migration 1: Thêm cột attack_type nếu chưa có
     IF NOT EXISTS (
-        SELECT 1
-        FROM INFORMATION_SCHEMA.COLUMNS
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = 'security_logs'
           AND TABLE_NAME   = 'logs'
           AND COLUMN_NAME  = 'attack_type'
     ) THEN
-        -- Cột chưa có → thêm vào
-        ALTER TABLE logs
-            ADD COLUMN attack_type VARCHAR(50) DEFAULT 'NORMAL'
-            AFTER status;
-
-        SELECT 'OK: Đã thêm cột attack_type vào bảng logs' AS migration_result;
+        ALTER TABLE logs ADD COLUMN attack_type VARCHAR(50) DEFAULT 'NORMAL' AFTER status;
+        SELECT 'OK: Đã thêm cột attack_type' AS migration_result;
     ELSE
-        SELECT 'SKIP: Cột attack_type đã tồn tại, không cần migration' AS migration_result;
+        SELECT 'SKIP: attack_type đã tồn tại' AS migration_result;
+    END IF;
+
+    -- Migration 2: Thêm cột score nếu chưa có
+    -- Lý do: trước đây không có cột này → dùng calculateScoreFromStatus() giả
+    -- (SUSPICIOUS luôn = 30 dù SecurityBot tính ra 15 hay 20)
+    -- → Gây nhầm lẫn khi hiển thị và ảnh hưởng tới no-downgrade logic.
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'security_logs'
+          AND TABLE_NAME   = 'logs'
+          AND COLUMN_NAME  = 'score'
+    ) THEN
+        ALTER TABLE logs ADD COLUMN score INT DEFAULT 0 AFTER attack_type;
+        SELECT 'OK: Đã thêm cột score' AS migration_result;
+    ELSE
+        SELECT 'SKIP: score đã tồn tại' AS migration_result;
     END IF;
 END$$
 
 DELIMITER ;
 
--- Gọi procedure để thực thi migration
-CALL add_column_if_missing();
+-- Chạy migration
+CALL migrate_logs_columns();
 
--- Dọn dẹp procedure tạm sau khi dùng
-DROP PROCEDURE IF EXISTS add_column_if_missing;
+-- Dọn dẹp
+DROP PROCEDURE IF EXISTS migrate_logs_columns;
 
 -- Kiểm tra lại cấu trúc bảng sau migration
 DESCRIBE logs;

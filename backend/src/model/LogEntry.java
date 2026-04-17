@@ -122,6 +122,14 @@ public class LogEntry {
     public void setDescription(String description) { this.description = description; }
 
     /**
+     * Resets the isModified flag to false.
+     * Called after loading a LogEntry from DB so that updateLogs() only writes
+     * back entries that SecurityBot actually modified during analysis,
+     * not every log on every cycle.
+     */
+    public void resetModified() { this.isModified = false; }
+
+    /**
      * Returns a string representation for debugging.
      */
     @Override

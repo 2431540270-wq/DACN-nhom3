@@ -32,8 +32,8 @@ public class LogDAO {
      */
     public boolean insertLog(LogEntry log) {
 
-        String sql = "INSERT INTO logs (timestamp, ip_address, action, status, attack_type, description) "
-                + "VALUES (?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO logs (timestamp, ip_address, action, status, attack_type, score, description) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -43,7 +43,8 @@ public class LogDAO {
             stmt.setString(3, log.getAction());
             stmt.setString(4, log.getStatus());
             stmt.setString(5, log.getAttackType());
-            stmt.setString(6, log.getAction() + " from IP " + log.getIp());
+            stmt.setInt   (6, log.getScore());
+            stmt.setString(7, log.getAction() + " from IP " + log.getIp());
 
             int rowsAffected = stmt.executeUpdate();
 
@@ -68,8 +69,8 @@ public class LogDAO {
      */
     public int insertLogs(List<LogEntry> logs) {
 
-        String sql = "INSERT INTO logs (timestamp, ip_address, action, status, attack_type, description) "
-                + "VALUES (?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO logs (timestamp, ip_address, action, status, attack_type, score, description) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?)";
 
         int count = 0;
 
@@ -82,7 +83,8 @@ public class LogDAO {
                 stmt.setString(3, log.getAction());
                 stmt.setString(4, log.getStatus());
                 stmt.setString(5, log.getAttackType());
-                stmt.setString(6, log.getAction() + " from IP " + log.getIp());
+                stmt.setInt   (6, log.getScore());
+                stmt.setString(7, log.getAction() + " from IP " + log.getIp());
                 stmt.addBatch();
             }
 
@@ -110,7 +112,7 @@ public class LogDAO {
 
         List<LogEntry> logs = new ArrayList<>();
 
-        String sql = "SELECT id, timestamp, ip_address, action, status, attack_type, description "
+        String sql = "SELECT id, timestamp, ip_address, action, status, attack_type, score, description "
                 + "FROM logs ORDER BY timestamp DESC LIMIT 100";
 
         try (Connection conn = DatabaseConnection.getConnection();
@@ -141,7 +143,7 @@ public class LogDAO {
 
         List<LogEntry> logs = new ArrayList<>();
 
-        String sql = "SELECT id, timestamp, ip_address, action, status, attack_type, description "
+        String sql = "SELECT id, timestamp, ip_address, action, status, attack_type, score, description "
                 + "FROM logs WHERE ip_address = ? ORDER BY timestamp DESC";
 
         try (Connection conn = DatabaseConnection.getConnection();
@@ -201,7 +203,7 @@ public class LogDAO {
      */
     public int updateLogs(java.util.List<LogEntry> logs) {
 
-        String sql = "UPDATE logs SET attack_type = ?, status = ? WHERE id = ? AND id > 0";
+        String sql = "UPDATE logs SET attack_type = ?, status = ?, score = ? WHERE id = ? AND id > 0";
 
         int count = 0;
 
@@ -217,7 +219,8 @@ public class LogDAO {
 
                 stmt.setString(1, log.getAttackType());
                 stmt.setString(2, log.getStatus());
-                stmt.setInt(3, log.getId());
+                stmt.setInt   (3, log.getScore());
+                stmt.setInt   (4, log.getId());
                 stmt.addBatch();
                 batchCount++;
             }
@@ -250,8 +253,8 @@ public class LogDAO {
         String sql = "SELECT DISTINCT ip_address FROM logs WHERE status = 'BLOCKED'";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
+                PreparedStatement stmt = conn.prepareStatement(sql);
+                ResultSet rs = stmt.executeQuery()) {
 
             while (rs.next()) {
                 blockedIPs.add(rs.getString("ip_address"));
@@ -284,9 +287,19 @@ public class LogDAO {
         }
         entry.setAttackType(attackType);
         entry.setStatus(rs.getString("status"));
-        entry.setScore(calculateScoreFromStatus(rs.getString("status")));
+
+        // Đọc score THỰC từ DB (do SecurityBot tính và persist qua updateLogs).
+        // Nếu score=0 (row cũ trước migration), fallback về calculateScoreFromStatus.
+        int dbScore = rs.getInt("score");
+        entry.setScore(dbScore > 0 ? dbScore : calculateScoreFromStatus(rs.getString("status")));
+
         entry.setId(rs.getInt("id"));
         entry.setDescription(rs.getString("description"));
+
+        // Reset isModified: các setters đánh dấu entry là "đã sửa" ngay khi đọc từ DB.
+        // Nếu không reset, updateLogs() sẽ ghi lại TẤT CẢ 100 log mỗi 2 giây.
+        // Sau reset, chỉ những log mà SecurityBot thực sự thay đổi mới được persist.
+        entry.resetModified();
 
         return entry;
     }
@@ -312,33 +325,54 @@ public class LogDAO {
                 return 0;
         }
     }
+
     /**
-     * [BUG 8 FIX] Cập nhật trạng thái BLOCKED → PASS cho tất cả log của IP trong DB.
+     * Xóa toàn bộ dữ liệu của IP vừa được admin gỡ block — IP trở về "trong sạch".
      *
-     * Được gọi khi admin gỡ chặn IP từ /api/unblock.
-     * Nếu không có bước này, sau khi restart server, getBlockedIPs() sẽ đọc lại
-     * status BLOCKED từ DB và re-block IP vừa được gỡ.
+     * Thực hiện 2 bước:
+     * 1. DELETE tất cả log (bảng logs) của IP này.
+     * → failMap[ip] = 0 và requestMap[ip] = 0 → analyze() không có dữ liệu để
+     * re-block.
+     * → IP bắt đầu lại từ đầu, không bị cộng dồn điểm từ lịch sử cũ.
+     * 2. DELETE tất cả cảnh báo (bảng alerts) của IP này.
+     * → Trang Alerts sẽ không còn hiển thị cảnh báo cũ cho IP vừa được tha.
+     * → Đảm bảo tính nhất quán: không có log → không có alert là đúng.
      *
-     * @param ip IP address cần gỡ chặn trong DB
-     * @return Số rows được cập nhật
+     * @param ip IP address cần dọn sạch trong DB
+     * @return Tổng số rows đã xóa (logs + alerts)
      */
     public int unblockInDB(String ip) {
-        String sql = "UPDATE logs SET status = 'PASS', attack_type = 'NORMAL' "
-                   + "WHERE ip_address = ? AND status = 'BLOCKED'";
+        int total = 0;
 
+        // Bước 1: Xóa toàn bộ log của IP khỏi bảng logs
+        // failMap[ip] = 0, requestMap[ip] = 0 → riskScore = 0 → không re-block
+        String deleteLogsSql = "DELETE FROM logs WHERE ip_address = ?";
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
+                PreparedStatement stmt = conn.prepareStatement(deleteLogsSql)) {
             stmt.setString(1, ip);
-            int rows = stmt.executeUpdate();
-            System.out.println("[DB] unblockInDB: Updated " + rows + " row(s) for IP: " + ip);
-            return rows;
-
+            int deleted = stmt.executeUpdate();
+            System.out.println("[DB] unblockInDB: Deleted " + deleted + " log(s) for IP: " + ip);
+            total += deleted;
         } catch (SQLException e) {
-            System.err.println("[DB] unblockInDB error: " + e.getMessage());
-            return 0;
+            System.err.println("[DB] unblockInDB DELETE logs error: " + e.getMessage());
         }
+
+        // Bước 2: Xóa toàn bộ cảnh báo của IP khỏi bảng alerts
+        // Trang Alerts sẽ sạch – không còn cảnh báo cũ cho IP vừa được gỡ block
+        String deleteAlertsSql = "DELETE FROM alerts WHERE ip_address = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(deleteAlertsSql)) {
+            stmt.setString(1, ip);
+            int deleted = stmt.executeUpdate();
+            System.out.println("[DB] unblockInDB: Deleted " + deleted + " alert(s) for IP: " + ip);
+            total += deleted;
+        } catch (SQLException e) {
+            System.err.println("[DB] unblockInDB DELETE alerts error: " + e.getMessage());
+        }
+
+        return total;
     }
+
     /**
      * Retrieves the most recent 200 alert records from the alerts table.
      *
@@ -351,19 +385,19 @@ public class LogDAO {
         List<java.util.Map<String, Object>> result = new ArrayList<>();
 
         String sql = "SELECT ip_address, attack_type, risk_score, alert_level, created_at "
-                   + "FROM alerts ORDER BY created_at DESC LIMIT 200";
+                + "FROM alerts ORDER BY created_at DESC LIMIT 200";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
+                PreparedStatement stmt = conn.prepareStatement(sql);
+                ResultSet rs = stmt.executeQuery()) {
 
             while (rs.next()) {
                 java.util.Map<String, Object> alert = new java.util.LinkedHashMap<>();
-                alert.put("time",   rs.getString("created_at"));
-                alert.put("level",  rs.getString("alert_level"));
+                alert.put("time", rs.getString("created_at"));
+                alert.put("level", rs.getString("alert_level"));
                 alert.put("attack", rs.getString("attack_type"));
-                alert.put("ip",     rs.getString("ip_address"));
-                alert.put("score",  rs.getInt("risk_score"));
+                alert.put("ip", rs.getString("ip_address"));
+                alert.put("score", rs.getInt("risk_score"));
                 result.add(alert);
             }
 
