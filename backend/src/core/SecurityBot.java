@@ -16,6 +16,7 @@ public class SecurityBot {
      */
     private Map<String, Integer> lastFailCount = new HashMap<>();
     private Map<String, Integer> lastRequestCount = new HashMap<>();
+    private Map<String, Integer> lastAlertScore = new HashMap<>();
 
     /**
      * Firewall instance — blocks IPs that exceed the risk threshold.
@@ -103,9 +104,9 @@ public class SecurityBot {
 
             // Step 4: Determine attack type
             String attackType = "NORMAL";
-            if (fail >= 1) {
+            if (fail >= 5) {
                 attackType = "BRUTE_FORCE";
-            } else if (request >= 1) {
+            } else if (request >= 20) {
                 attackType = "REQUEST_FLOOD";
             }
 
@@ -113,6 +114,7 @@ public class SecurityBot {
             // Không có log mới → cùng bộ log cũ trong DB → không tạo thêm alert,
             // không tự block, không tăng history. Status giữ nguyên nhờ no-downgrade rule.
             String status = "PASS";
+            int prevAlertScore = lastAlertScore.getOrDefault(ip, 0);
 
             if (riskScore >= 15 && hasNewActivity) {
                 int level = Math.min(history + 1, 10);
@@ -121,15 +123,17 @@ public class SecurityBot {
                 if (riskScore >= 45) {
                     firewall.blockIP(ip);
                     status = "BLOCKED";
-
                 } else if (riskScore >= 30) {
                     status = "MONITORING";
-
                 } else {
                     status = "SUSPICIOUS";
                 }
 
-                alertSystem.addAlert(ip, attackType, riskScore, status);
+                // Chỉ gửi alert khi riskScore thực sự tăng lên so với lần alert trước
+                if (riskScore > prevAlertScore) {
+                    alertSystem.addAlert(ip, attackType, riskScore, status);
+                    lastAlertScore.put(ip, riskScore);
+                }
             }
 
             // Step 6: Cập nhật score và status lên các log entries của IP.
