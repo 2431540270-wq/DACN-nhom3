@@ -465,7 +465,7 @@ public class ApiServer {
         });
 
         server.start();
-        System.out.println("   API Server running at http://192.168.1.8:8080");
+        System.out.println("   API Server running at http://172.21.214.96:8080");
         System.out
                 .println("   Blue Team: /api/analyze, /api/logs, /api/alerts, /api/blocked, /api/block, /api/unblock");
         System.out.println("   Red Team:  /api/attack/bruteforce, /api/attack/flood, /api/check-block");
