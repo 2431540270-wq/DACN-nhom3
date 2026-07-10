@@ -202,6 +202,9 @@ public class SecurityBot {
         dangerHistory.remove(ip);
         lastFailCount.remove(ip); // Reset snapshot để IP bắt đầu lại hoàn toàn
         lastRequestCount.remove(ip);
+        lastAlertScore.remove(ip); // [FIX] Reset ngưỡng alert — nếu không xóa,
+                                   // IP tấn công lại với score thấp hơn score cũ
+                                   // sẽ không bao giờ trigger được alert mới.
         System.out.println("[SecurityBot] Cleared danger history for IP: " + ip);
     }
 
