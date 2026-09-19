@@ -31,6 +31,8 @@ class LogReader:
                     action_val = parts[2] if len(parts) > 2 else "REQUEST"
 
                     entry = LogEntry(time_val, ip_val, action_val)
+                    if len(parts) > 3:
+                        entry.set_description(" ".join(parts[3:]))
                     logs.append(entry)
         except Exception as e:
             print(f"[LogReader] Error reading file {file_name}: {e}")

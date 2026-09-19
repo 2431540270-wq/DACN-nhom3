@@ -61,6 +61,25 @@ async function sendRequestFlood() {
 
 
 /**
+ * GỬI WEB PAYLOAD ATTACK (SQLi, XSS, Path Traversal, CMDi) ĐỂ AI PHÂN TÍCH
+ */
+async function sendWebPayload(payload) {
+    const response = await fetch(`${API_BASE}/attack/payload`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ payload })
+    });
+
+    if (response.status === 403) {
+        window.location.href = "403.html";
+        throw new Error("Blocked");
+    }
+    return response.json();
+}
+
+/**
  * KIỂM TRA IP CÓ BỊ BLOCK KHÔNG
  */
 async function checkBlock() {

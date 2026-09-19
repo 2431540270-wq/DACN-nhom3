@@ -16,6 +16,7 @@ class DatabaseConnection:
     _is_available = False
     _last_ping_time = 0
     _PING_INTERVAL_SEC = 30
+    
     _lock = threading.Lock()
 
     @classmethod
@@ -23,6 +24,7 @@ class DatabaseConnection:
         """Attempts to open and return a MySQL connection (or None if driver/server unavailable)."""
         try:
             try:
+                # pyrefly: ignore [missing-import]
                 import mysql.connector
                 return mysql.connector.connect(
                     host=cls.HOST,

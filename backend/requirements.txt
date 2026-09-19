@@ -1,2 +1,7 @@
+# Core AI Dependencies
+numpy>=1.24.0
+scikit-learn>=1.2.0
+xgboost>=1.7.0
+
 # Optional database connector (if MySQL is running)
 mysql-connector-python>=8.0.0

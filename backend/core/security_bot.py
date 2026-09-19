@@ -4,11 +4,13 @@ from models.log_entry import LogEntry
 from core.firewall import Firewall
 from alert.alert_system import AlertSystem
 from services.log_analyzer import LogAnalyzer
+from core.ai_detector import AIDetector
 
 class SecurityBot:
     """
     SecurityBot — Evaluates log entries, calculates risk scores,
     manages danger history, triggers alerts, and interacts with the Firewall.
+    Tích hợp AIDetector để nhận diện thông minh các cuộc tấn công Web và luồng mạng.
     """
 
     def __init__(self):
@@ -17,6 +19,7 @@ class SecurityBot:
         self.last_request_count: Dict[str, int] = {}
         self.last_alert_score: Dict[str, int] = {}
         self.firewall = Firewall()
+        self.ai_detector = AIDetector()
         self._lock = threading.Lock()
 
     def analyze(self, logs: List[LogEntry], alert_system: AlertSystem):
@@ -60,11 +63,27 @@ class SecurityBot:
                 self.last_fail_count[ip] = fail
                 self.last_request_count[ip] = request
 
+                # ── Phân tích thông minh bằng AI Detector ──
+                ai_attack_type = None
+                ai_max_risk = 0
+                for log in logs:
+                    if log.get_ip() == ip:
+                        desc = log.get_description()
+                        if desc and desc.strip():
+                            ai_res = self.ai_detector.predict_payload(desc)
+                            if ai_res.get("is_attack"):
+                                ai_attack_type = f"WEB_{ai_res['attack_type'].upper()}"
+                                ai_max_risk = max(ai_max_risk, ai_res.get("risk_score", 0))
+                                log.set_attack_type(ai_attack_type)
+                                log.set_score(max(log.get_score(), ai_res.get("risk_score", 0)))
+
                 risk_score = (fail * 10) + (request * 5) - (success * 1) + (history * 5)
-                risk_score = max(risk_score, 0)
+                risk_score = max(risk_score, ai_max_risk, 0)
 
                 attack_type = "NORMAL"
-                if fail >= 5:
+                if ai_attack_type:
+                    attack_type = ai_attack_type
+                elif fail >= 5:
                     attack_type = "BRUTE_FORCE"
                 elif request >= 20:
                     attack_type = "REQUEST_FLOOD"
@@ -72,7 +91,7 @@ class SecurityBot:
                 status = "PASS"
                 prev_alert_score = self.last_alert_score.get(ip, 0)
 
-                if risk_score >= 15 and has_new_activity:
+                if risk_score >= 15 and (has_new_activity or ai_attack_type):
                     level = min(history + 1, 10)
                     self.danger_history[ip] = level
 
@@ -114,3 +133,6 @@ class SecurityBot:
 
     def get_firewall(self) -> Firewall:
         return self.firewall
+
+    def get_ai_detector(self) -> AIDetector:
+        return self.ai_detector

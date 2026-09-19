@@ -211,6 +211,15 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
                 print(f"[API /check-block] ERROR: {e}")
                 self._send_json({"error": str(e)}, 500)
 
+        # ENDPOINT 10: GET /api/ai/status
+        elif url_path == "/api/ai/status":
+            try:
+                status = bot.get_ai_detector().get_status()
+                self._send_json(status)
+            except Exception as e:
+                print(f"[API /ai/status] ERROR: {e}")
+                self._send_json({"error": str(e)}, 500)
+
         else:
             self._send_json({"error": "Endpoint not found"}, 404)
 
@@ -296,6 +305,85 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"success": True, "action": "REQUEST", "ip": attacker_ip})
             except Exception as e:
                 print(f"[API /attack/flood] ERROR: {e}")
+                self._send_json({"error": str(e)}, 500)
+
+        # ENDPOINT 11: POST /api/ai/predict-payload
+        elif url_path == "/api/ai/predict-payload":
+            try:
+                body = self._read_json_body()
+                payload = body.get("payload", "")
+                result = bot.get_ai_detector().predict_payload(payload)
+                self._send_json(result)
+            except Exception as e:
+                print(f"[API /ai/predict-payload] ERROR: {e}")
+                self._send_json({"error": str(e)}, 500)
+
+        # ENDPOINT 12: POST /api/ai/predict-flow
+        elif url_path == "/api/ai/predict-flow":
+            try:
+                body = self._read_json_body()
+                features = body.get("features", [])
+                result = bot.get_ai_detector().predict_flow(features)
+                self._send_json(result)
+            except Exception as e:
+                print(f"[API /ai/predict-flow] ERROR: {e}")
+                self._send_json({"error": str(e)}, 500)
+
+        # ENDPOINT 13: POST /api/attack/payload
+        elif url_path == "/api/attack/payload":
+            try:
+                attacker_ip = self._get_client_ip()
+                if bot.get_firewall().is_blocked(attacker_ip):
+                    print(f"[API /attack/payload] BLOCKED IP tried: {attacker_ip}")
+                    self._send_json({"blocked": True, "message": "Your IP is blocked"}, 403)
+                    return
+
+                body = self._read_json_body()
+                payload = body.get("payload", "")
+
+                # Phân tích bằng AI Detector
+                ai_res = bot.get_ai_detector().predict_payload(payload)
+                is_attack = ai_res.get("is_attack", False)
+                attack_type = f"WEB_{ai_res.get('attack_type', 'NORM').upper()}" if is_attack else "NORMAL"
+                risk_score = ai_res.get("risk_score", 0)
+
+                status = "PASS"
+                if risk_score >= 45:
+                    status = "BLOCKED"
+                    bot.get_firewall().block_ip(attacker_ip)
+                    alert_system.add_alert(attacker_ip, attack_type, risk_score, status)
+                elif risk_score >= 30:
+                    status = "MONITORING"
+                elif risk_score >= 15:
+                    status = "SUSPICIOUS"
+
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                entry = LogEntry(now_str, attacker_ip, "REQUEST")
+                entry.set_description(payload)
+                entry.set_score(risk_score)
+                entry.set_status(status)
+                entry.set_attack_type(attack_type)
+
+                if DatabaseConnection.is_available():
+                    log_dao.insert_log(entry)
+                else:
+                    try:
+                        os.makedirs("logs", exist_ok=True)
+                        with open("logs/network.log", "a", encoding="utf-8") as f:
+                            f.write(f"{now_str} {attacker_ip} REQUEST {payload}\n")
+                    except Exception:
+                        pass
+
+                print(f"[API /attack/payload] IP: {attacker_ip} | AI: {attack_type} ({risk_score}/100) -> {status}")
+                self._send_json({
+                    "success": True,
+                    "ip": attacker_ip,
+                    "ai_evaluation": ai_res,
+                    "status": status,
+                    "risk_score": risk_score
+                })
+            except Exception as e:
+                print(f"[API /attack/payload] ERROR: {e}")
                 self._send_json({"error": str(e)}, 500)
 
         else:

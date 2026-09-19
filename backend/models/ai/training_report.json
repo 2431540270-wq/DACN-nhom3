@@ -1,0 +1,48 @@
+{
+  "nids_binary_classification": {
+    "accuracy": 99.8163,
+    "f1_macro": 0.9967,
+    "train_seconds": 13.76,
+    "train_samples": 185044,
+    "test_samples": 46262
+  },
+  "nids_multiclass_classification": {
+    "accuracy": 99.5439,
+    "f1_macro": 0.8862,
+    "train_seconds": 80.56,
+    "train_samples": 185044,
+    "test_samples": 46262,
+    "classes": [
+      "Benign",
+      "Botnet",
+      "BruteForce",
+      "DDoS",
+      "DoS",
+      "Heartbleed",
+      "Infiltration",
+      "PortScan",
+      "Web_Attack"
+    ]
+  },
+  "web_payload_classification": {
+    "accuracy": 99.7503,
+    "f1_macro": 0.98,
+    "train_seconds": 17.08,
+    "train_samples": 43253,
+    "test_samples": 10814,
+    "classes": [
+      "cmdi",
+      "norm",
+      "path-traversal",
+      "sqli",
+      "xss"
+    ]
+  },
+  "saved_models": [
+    "model_nids_binary.json",
+    "model_nids_multiclass.json",
+    "model_web_payload.pkl",
+    "label_encoder_multiclass.pkl",
+    "feature_importance.csv"
+  ]
+}
