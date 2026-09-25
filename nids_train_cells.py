@@ -61,9 +61,16 @@ SEED = 42
 np.random.seed(SEED)
 
 # ── Đường dẫn dữ liệu ───────────────────────────────────────────────────────
-# ⚠️ Chỉnh lại đường dẫn này cho đúng vị trí file .parquet trên Kaggle.
-# Thường khi upload Dataset lên Kaggle, path sẽ là /kaggle/input/<tên-dataset>/...
-DATA_PATH = "/kaggle/input/nckh-nids-dataset/merged_cicids_network_flow.parquet"
+# Tự động dò tìm file parquet trong /kaggle/input (tránh lỗi sai tên dataset)
+import glob
+parquet_matches = glob.glob("/kaggle/input/**/merged_cicids_network_flow.parquet", recursive=True)
+if parquet_matches:
+    DATA_PATH = parquet_matches[0]
+    print(f"Đã tìm thấy dữ liệu tại: {DATA_PATH}")
+else:
+    # Dự phòng đường dẫn mặc định nếu chạy ngoài Kaggle
+    DATA_PATH = "data/processed/merged_cicids_network_flow.parquet"
+    print(f"Chưa tìm thấy trong /kaggle/input, fallback: {DATA_PATH}")
 
 # ── Thư mục xuất mô hình ────────────────────────────────────────────────────
 OUTPUT_DIR = "/kaggle/working"
@@ -107,9 +114,9 @@ FEATURE_COLS = [
     "Idle Mean", "Idle Std", "Idle Max", "Idle Min",
 ]
 
-print("✅ Cấu hình xong. Số đặc trưng:", len(FEATURE_COLS))
-print("   4 lớp phân loại:", TARGET_CLASSES)
-print("   XGBoost version:", xgb.__version__)
+print("Cấu hình xong. Số đặc trưng:", len(FEATURE_COLS))
+print("4 lớp phân loại:", TARGET_CLASSES)
+print("XGBoost version:", xgb.__version__)
 
 
 # %%
@@ -118,10 +125,10 @@ print("   XGBoost version:", xgb.__version__)
 # ============================================================================
 
 # Đọc toàn bộ file parquet
-print("📂 Đang đọc dữ liệu...")
+print("Đang đọc dữ liệu...")
 df_raw = pd.read_parquet(DATA_PATH)
-print(f"   Tổng số dòng ban đầu: {len(df_raw):,}")
-print("   Phân bố nhãn gốc:")
+print(f"Tổng số dòng ban đầu: {len(df_raw):,}")
+print("Phân bố nhãn gốc:")
 print(df_raw["Label_Category"].value_counts().to_string())
 
 # ── Lọc chỉ giữ 4 lớp mục tiêu ─────────────────────────────────────────────
@@ -240,7 +247,7 @@ XGB_PARAMS = dict(
     objective         = "multi:softprob",
     num_class         = len(le.classes_),
     eval_metric       = ["mlogloss", "merror"],
-    tree_method       = "gpu_hist",        # ← GPU
+    tree_method       = "hist",            # Chuẩn XGBoost 2.0+ (kết hợp với device='cuda' để chạy GPU)
     device            = "cuda",
     n_estimators      = 1500,              # nhiều cây, để early stopping cắt bớt
     learning_rate     = 0.05,             # học chậm nhưng chắc
@@ -364,10 +371,10 @@ print(classification_report(
 # Phân tích độ tự tin tổng thể
 max_conf_all   = all_y_prob.max(axis=1)
 high_conf_mask = max_conf_all >= 0.85
-print(f"🎯 Dự đoán với độ tự tin ≥ 85%: {high_conf_mask.mean()*100:.1f}% tổng số mẫu")
-print(f"   Accuracy trong nhóm ≥ 85% tự tin: "
+print(f"Dự đoán với độ tự tin ≥ 85%: {high_conf_mask.mean()*100:.1f}% tổng số mẫu")
+print(f"Accuracy trong nhóm ≥ 85% tự tin: "
       f"{accuracy_score(all_y_true[high_conf_mask], all_y_pred[high_conf_mask]):.4f}")
-print(f"   Accuracy trong nhóm < 85% tự tin : "
+print(f"Accuracy trong nhóm < 85% tự tin : "
       f"{accuracy_score(all_y_true[~high_conf_mask], all_y_pred[~high_conf_mask]):.4f}")
 
 
@@ -430,7 +437,7 @@ print(f"✅ Đã lưu biểu đồ → {plot_path}")
 # Lưu XGBoost model
 model_path = os.path.join(OUTPUT_DIR, "model_nids_multiclass.json")
 best_model.save_model(model_path)
-print(f"✅ Đã lưu mô hình → {model_path}")
+print(f"Đã lưu mô hình → {model_path}")
 
 # Lưu feature importance CSV
 fi_full = (
@@ -443,7 +450,7 @@ fi_full = (
 fi_full.index = [col_map.get(k, k) for k in fi_full.index]
 fi_csv_path = os.path.join(OUTPUT_DIR, "feature_importance_nids.csv")
 fi_full.to_csv(fi_csv_path)
-print(f"✅ Đã lưu feature importance → {fi_csv_path}")
+print(f"Đã lưu feature importance → {fi_csv_path}")
 
 # Ghi training report
 report = {
@@ -485,30 +492,30 @@ report = {
 report_path = os.path.join(OUTPUT_DIR, "training_report.json")
 with open(report_path, "w", encoding="utf-8") as f:
     json.dump(report, f, ensure_ascii=False, indent=2)
-print(f"✅ Đã lưu training report → {report_path}")
+print(f"Đã lưu training report → {report_path}")
 
 print("\n" + "=" * 65)
-print("  TỔNG KẾT")
+print("TỔNG KẾT")
 print("=" * 65)
-print(f"  Accuracy trung bình : {avg_acc*100:.2f}%  (±{std_acc*100:.2f}%)")
-print(f"  F1-Macro trung bình : {avg_f1:.4f}        (±{std_f1:.4f})")
-print(f"  Log-Loss trung bình : {avg_logloss:.4f}")
-print(f"  Brier Score         : {avg_brier:.4f}")
-print(f"  Dự đoán tự tin ≥85% : {high_conf_mask.mean()*100:.1f}%")
+print(f"Accuracy trung bình : {avg_acc*100:.2f}%  (±{std_acc*100:.2f}%)")
+print(f"F1-Macro trung bình : {avg_f1:.4f}        (±{std_f1:.4f})")
+print(f"Log-Loss trung bình : {avg_logloss:.4f}")
+print(f"Brier Score         : {avg_brier:.4f}")
+print(f"Dự đoán tự tin ≥85% : {high_conf_mask.mean()*100:.1f}%")
 print("=" * 65)
-print("\n🎉 Hoàn thành huấn luyện! Tải về 4 file sau từ /kaggle/working:")
-print("   1. model_nids_multiclass.json")
-print("   2. label_encoder_multiclass.pkl")
-print("   3. feature_importance_nids.csv")
-print("   4. training_report.json")
-print("   5. training_charts.png  (biểu đồ đánh giá)")
+print("\nHoàn thành huấn luyện! Tải về 4 file sau từ /kaggle/working:")
+print("1. model_nids_multiclass.json")
+print("2. label_encoder_multiclass.pkl")
+print("3. feature_importance_nids.csv")
+print("4. training_report.json")
+print("5. training_charts.png  (biểu đồ đánh giá)")
 
 
 # %%
 # ============================================================================
 # CELL 10 — (TÙY CHỌN) Kiểm tra nhanh độ tự tin với mẫu giả lập
 # ============================================================================
-print("🔍 Kiểm tra nhanh dự đoán trên 5 mẫu ngẫu nhiên từ tập val cuối...")
+print("Kiểm tra nhanh dự đoán trên 5 mẫu ngẫu nhiên từ tập val cuối...")
 
 # Lấy 5 mẫu ngẫu nhiên từ X và y
 sample_idx = np.random.choice(len(X), size=5, replace=False)

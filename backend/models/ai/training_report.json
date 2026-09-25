@@ -1,48 +1,97 @@
 {
-  "nids_binary_classification": {
-    "accuracy": 99.8163,
-    "f1_macro": 0.9967,
-    "train_seconds": 13.76,
-    "train_samples": 185044,
-    "test_samples": 46262
+  "model_type": "XGBoost Multiclass (GPU)",
+  "target_classes": [
+    "Benign",
+    "DDoS",
+    "DoS",
+    "PortScan"
+  ],
+  "n_classes": 4,
+  "dataset": {
+    "total_samples": 131703,
+    "samples_per_class": {
+      "Benign": 38034,
+      "DoS": 40000,
+      "DDoS": 28669,
+      "PortScan": 25000
+    }
   },
-  "nids_multiclass_classification": {
-    "accuracy": 99.5439,
-    "f1_macro": 0.8862,
-    "train_seconds": 80.56,
-    "train_samples": 185044,
-    "test_samples": 46262,
-    "classes": [
-      "Benign",
-      "Botnet",
-      "BruteForce",
-      "DDoS",
-      "DoS",
-      "Heartbleed",
-      "Infiltration",
-      "PortScan",
-      "Web_Attack"
-    ]
+  "hyperparameters": {
+    "objective": "multi:softprob",
+    "num_class": 4,
+    "eval_metric": [
+      "mlogloss",
+      "merror"
+    ],
+    "tree_method": "hist",
+    "device": "cuda",
+    "n_estimators": 1500,
+    "learning_rate": 0.05,
+    "max_depth": 6,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "reg_alpha": 0.1,
+    "reg_lambda": 1.0,
+    "min_child_weight": 5,
+    "gamma": 0.1,
+    "random_state": 42,
+    "n_jobs": -1,
+    "verbosity": 0
   },
-  "web_payload_classification": {
-    "accuracy": 99.7503,
-    "f1_macro": 0.98,
-    "train_seconds": 17.08,
-    "train_samples": 43253,
-    "test_samples": 10814,
-    "classes": [
-      "cmdi",
-      "norm",
-      "path-traversal",
-      "sqli",
-      "xss"
-    ]
+  "cv_folds": 4,
+  "fold_results": [
+    {
+      "fold": 1,
+      "accuracy": 0.998967,
+      "f1_macro": 0.999027,
+      "log_loss": 0.005106,
+      "best_iteration": 173,
+      "high_conf_pct": 99.79,
+      "high_conf_acc": 0.999604
+    },
+    {
+      "fold": 2,
+      "accuracy": 0.999301,
+      "f1_macro": 0.999366,
+      "log_loss": 0.003787,
+      "best_iteration": 211,
+      "high_conf_pct": 99.84,
+      "high_conf_acc": 0.999665
+    },
+    {
+      "fold": 3,
+      "accuracy": 0.998937,
+      "f1_macro": 0.999018,
+      "log_loss": 0.007727,
+      "best_iteration": 141,
+      "high_conf_pct": 99.72,
+      "high_conf_acc": 0.99933
+    },
+    {
+      "fold": 4,
+      "accuracy": 0.999241,
+      "f1_macro": 0.999288,
+      "log_loss": 0.004573,
+      "best_iteration": 203,
+      "high_conf_pct": 99.83,
+      "high_conf_acc": 0.999513
+    }
+  ],
+  "avg_accuracy": 0.999112,
+  "std_accuracy": 0.000161,
+  "avg_f1_macro": 0.999175,
+  "std_f1_macro": 0.000155,
+  "avg_log_loss": 0.005298,
+  "avg_brier_score": 0.000418,
+  "confidence": {
+    "threshold": 0.85,
+    "high_conf_pct": 99.79,
+    "high_conf_accuracy": 0.999528
   },
-  "saved_models": [
-    "model_nids_binary.json",
+  "saved_files": [
     "model_nids_multiclass.json",
-    "model_web_payload.pkl",
     "label_encoder_multiclass.pkl",
-    "feature_importance.csv"
+    "feature_importance_nids.csv",
+    "training_charts.png"
   ]
 }

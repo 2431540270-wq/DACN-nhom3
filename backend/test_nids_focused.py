@@ -37,90 +37,179 @@ from core.ai_detector import AIDetector
 #   Index 48 = ACK Flag Count
 # ─────────────────────────────────────────────────────────────────────────────
 
-def make_flow(protocol=6, duration=50000, fwd_pkts=5, bwd_pkts=4,
-              fwd_len=1500, bwd_len=1200, pkt_rate=10.0,
-              syn=0, rst=0, ack=1, fin=0) -> list:
-    """Tạo vector 77 đặc trưng với các giá trị chính, còn lại mặc định 0."""
-    v = [0.0] * 77
-    v[0]  = float(protocol)   # Protocol
-    v[1]  = float(duration)   # Flow Duration
-    v[2]  = float(fwd_pkts)   # Total Fwd Packets
-    v[3]  = float(bwd_pkts)   # Total Backward Packets
-    v[4]  = float(fwd_len)    # Fwd Packets Length Total
-    v[5]  = float(bwd_len)    # Bwd Packets Length Total
-    v[15] = float(pkt_rate)   # Flow Packets/s
-    v[43] = float(syn)        # SYN Flag Count
-    v[44] = float(rst)        # RST Flag Count
-    v[45] = float(ack)        # ACK Flag Count (index 45 = PSH, 46 = ACK tùy dataset)
-    v[42] = float(fin)        # FIN Flag Count
+FEATURE_COLS = [
+    "Protocol",
+    "Flow Duration", "Total Fwd Packets", "Total Backward Packets",
+    "Fwd Packets Length Total", "Bwd Packets Length Total",
+    "Fwd Packet Length Max", "Fwd Packet Length Min",
+    "Fwd Packet Length Mean", "Fwd Packet Length Std",
+    "Bwd Packet Length Max", "Bwd Packet Length Min",
+    "Bwd Packet Length Mean", "Bwd Packet Length Std",
+    "Flow Bytes/s", "Flow Packets/s",
+    "Flow IAT Mean", "Flow IAT Std", "Flow IAT Max", "Flow IAT Min",
+    "Fwd IAT Total", "Fwd IAT Mean", "Fwd IAT Std",
+    "Fwd IAT Max", "Fwd IAT Min",
+    "Bwd IAT Total", "Bwd IAT Mean", "Bwd IAT Std",
+    "Bwd IAT Max", "Bwd IAT Min",
+    "Fwd PSH Flags", "Bwd PSH Flags", "Fwd URG Flags", "Bwd URG Flags",
+    "Fwd Header Length", "Bwd Header Length",
+    "Fwd Packets/s", "Bwd Packets/s",
+    "Packet Length Min", "Packet Length Max",
+    "Packet Length Mean", "Packet Length Std", "Packet Length Variance",
+    "FIN Flag Count", "SYN Flag Count", "RST Flag Count",
+    "PSH Flag Count", "ACK Flag Count", "URG Flag Count",
+    "CWE Flag Count", "ECE Flag Count",
+    "Down/Up Ratio", "Avg Packet Size",
+    "Avg Fwd Segment Size", "Avg Bwd Segment Size",
+    "Fwd Avg Bytes/Bulk", "Fwd Avg Packets/Bulk", "Fwd Avg Bulk Rate",
+    "Bwd Avg Bytes/Bulk", "Bwd Avg Packets/Bulk", "Bwd Avg Bulk Rate",
+    "Subflow Fwd Packets", "Subflow Fwd Bytes",
+    "Subflow Bwd Packets", "Subflow Bwd Bytes",
+    "Init Fwd Win Bytes", "Init Bwd Win Bytes",
+    "Fwd Act Data Packets", "Fwd Seg Size Min",
+    "Active Mean", "Active Std", "Active Max", "Active Min",
+    "Idle Mean", "Idle Std", "Idle Max", "Idle Min",
+]
+
+COL_INDEX = {col: i for i, col in enumerate(FEATURE_COLS)}
+
+
+def make_flow_from_dict(d: dict) -> list:
+    """Tạo vector 77 đặc trưng dựa trên dict tên cột."""
+    v = [0.0] * len(FEATURE_COLS)
+    for col_name, val in d.items():
+        if col_name in COL_INDEX:
+            v[COL_INDEX[col_name]] = float(val)
     return v
 
 
-# Định nghĩa các mẫu kiểm thử và nhãn kỳ vọng
+# Định nghĩa các mẫu kiểm thử đặc trưng chuẩn CICIDS2017
 TEST_CASES = [
     {
         "name": "Lưu lượng HTTPS bình thường (Benign)",
         "expected": "Benign",
-        "flow": make_flow(
-            protocol=6, duration=120000, fwd_pkts=10, bwd_pkts=8,
-            fwd_len=5000, bwd_len=4200, pkt_rate=15.0, ack=1
-        ),
+        "flow": make_flow_from_dict({
+            "Protocol": 6, "Flow Duration": 150000,
+            "Total Fwd Packets": 10, "Total Backward Packets": 9,
+            "Fwd Packets Length Total": 3200, "Bwd Packets Length Total": 4800,
+            "Fwd Packet Length Max": 1460, "Fwd Packet Length Min": 0, "Fwd Packet Length Mean": 320,
+            "Bwd Packet Length Max": 1460, "Bwd Packet Length Min": 52, "Bwd Packet Length Mean": 533,
+            "Flow Bytes/s": 53333.3, "Flow Packets/s": 126.6,
+            "Fwd Header Length": 200, "Bwd Header Length": 180,
+            "Fwd Packets/s": 66.6, "Bwd Packets/s": 60.0,
+            "Packet Length Min": 0, "Packet Length Max": 1460, "Packet Length Mean": 421.0,
+            "ACK Flag Count": 1, "Avg Packet Size": 443.0,
+            "Init Fwd Win Bytes": 8192, "Init Bwd Win Bytes": 8192,
+            "Fwd Act Data Packets": 3, "Fwd Seg Size Min": 20,
+        }),
     },
     {
         "name": "HTTP GET thông thường (Benign)",
         "expected": "Benign",
-        "flow": make_flow(
-            protocol=6, duration=80000, fwd_pkts=4, bwd_pkts=3,
-            fwd_len=400, bwd_len=6000, pkt_rate=8.0, ack=1
-        ),
+        "flow": make_flow_from_dict({
+            "Protocol": 6, "Flow Duration": 85000,
+            "Total Fwd Packets": 5, "Total Backward Packets": 4,
+            "Fwd Packets Length Total": 450, "Bwd Packets Length Total": 3200,
+            "Fwd Packet Length Max": 450, "Fwd Packet Length Min": 0, "Fwd Packet Length Mean": 90,
+            "Bwd Packet Length Max": 1460, "Bwd Packet Length Min": 52, "Bwd Packet Length Mean": 800,
+            "Flow Bytes/s": 42941.1, "Flow Packets/s": 105.8,
+            "Fwd Header Length": 100, "Bwd Header Length": 80,
+            "Bwd Packets/s": 47.0, "Packet Length Min": 0, "Packet Length Mean": 405.0,
+            "ACK Flag Count": 1, "Init Fwd Win Bytes": 29200, "Init Bwd Win Bytes": 28960,
+            "Fwd Seg Size Min": 20,
+        }),
     },
     {
         "name": "SYN Flood — DDoS điển hình",
         "expected": "DDoS",
-        "flow": make_flow(
-            protocol=6, duration=50, fwd_pkts=8000, bwd_pkts=0,
-            fwd_len=320000, bwd_len=0, pkt_rate=160000.0, syn=8000
-        ),
+        "flow": make_flow_from_dict({
+            "Protocol": 6, "Flow Duration": 120,
+            "Total Fwd Packets": 3, "Total Backward Packets": 0,
+            "Fwd Packets Length Total": 0, "Bwd Packets Length Total": 0,
+            "Fwd Packet Length Max": 0, "Fwd Packet Length Min": 0,
+            "Bwd Packet Length Max": 0, "Bwd Packet Length Min": 0,
+            "Flow Bytes/s": 0.0, "Flow Packets/s": 25000.0,
+            "Fwd Header Length": 96, "Bwd Header Length": 0,
+            "Fwd Packets/s": 25000.0, "Bwd Packets/s": 0.0,
+            "SYN Flag Count": 1, "ACK Flag Count": 0,
+            "Init Fwd Win Bytes": 256, "Init Bwd Win Bytes": -1,
+            "Fwd Seg Size Min": 32, "Subflow Fwd Packets": 3, "Subflow Bwd Packets": 0,
+        }),
     },
     {
-        "name": "HTTP Flood — DDoS tầng ứng dụng",
+        "name": "HTTP Flood / LOIC — DDoS tầng ứng dụng",
         "expected": "DDoS",
-        "flow": make_flow(
-            protocol=6, duration=100, fwd_pkts=5000, bwd_pkts=2,
-            fwd_len=200000, bwd_len=100, pkt_rate=50000.0, syn=5000
-        ),
+        "flow": make_flow_from_dict({
+            "Protocol": 6, "Flow Duration": 5000,
+            "Total Fwd Packets": 4, "Total Backward Packets": 0,
+            "Fwd Packets Length Total": 0, "Bwd Packets Length Total": 0,
+            "Bwd Packet Length Min": 0, "Bwd Packets/s": 0,
+            "SYN Flag Count": 1, "ACK Flag Count": 0,
+            "Init Fwd Win Bytes": 256, "Init Bwd Win Bytes": -1,
+            "Fwd Seg Size Min": 32, "Subflow Fwd Packets": 4,
+        }),
     },
     {
-        "name": "DoS Hulk — tấn công lớn từ một nguồn",
+        "name": "DoS Hulk — Flood lượng lớn request HTTP",
         "expected": "DoS",
-        "flow": make_flow(
-            protocol=6, duration=200, fwd_pkts=3000, bwd_pkts=1,
-            fwd_len=90000, bwd_len=50, pkt_rate=15000.0, syn=3000, rst=10
-        ),
+        "flow": make_flow_from_dict({
+            "Protocol": 6, "Flow Duration": 1200000,
+            "Total Fwd Packets": 6, "Total Backward Packets": 6,
+            "Fwd Packets Length Total": 1800, "Bwd Packets Length Total": 12000,
+            "Fwd Packet Length Max": 350, "Fwd Packet Length Min": 0,
+            "Bwd Packet Length Max": 4000, "Bwd Packet Length Min": 0,
+            "Fwd Header Length": 192, "Bwd Header Length": 200,
+            "Bwd Packet Length Std": 1200.0,
+            "Fwd Packets/s": 5.0, "Bwd Packets/s": 5.0,
+            "ACK Flag Count": 1, "RST Flag Count": 1,
+            "Init Fwd Win Bytes": 29200, "Init Bwd Win Bytes": 235,
+            "Fwd Seg Size Min": 32, "Idle Mean": 800000, "Idle Max": 900000,
+        }),
     },
     {
-        "name": "Slowloris — DoS chậm giữ kết nối",
+        "name": "DoS Slowloris — Giữ kết nối kéo dài",
         "expected": "DoS",
-        "flow": make_flow(
-            protocol=6, duration=300000, fwd_pkts=50, bwd_pkts=2,
-            fwd_len=500, bwd_len=20, pkt_rate=0.17, fin=0
-        ),
+        "flow": make_flow_from_dict({
+            "Protocol": 6, "Flow Duration": 75000000,
+            "Total Fwd Packets": 8, "Total Backward Packets": 4,
+            "Fwd Packets Length Total": 700, "Bwd Packets Length Total": 150,
+            "Fwd Packet Length Max": 150, "Bwd Packet Length Min": 0,
+            "Flow Packets/s": 0.16, "Bwd Packets/s": 0.05,
+            "Fwd Header Length": 260, "Bwd Header Length": 130,
+            "Init Fwd Win Bytes": 29200, "Init Bwd Win Bytes": 235,
+            "Fwd Seg Size Min": 32,
+            "Idle Mean": 15000000, "Idle Max": 20000000, "Idle Min": 10000000,
+        }),
     },
     {
-        "name": "Dò quét nhanh nhiều cổng (PortScan — SYN scan)",
+        "name": "Dò quét cổng SYN Scan (PortScan)",
         "expected": "PortScan",
-        "flow": make_flow(
-            protocol=6, duration=20, fwd_pkts=1, bwd_pkts=0,
-            fwd_len=44, bwd_len=0, pkt_rate=50.0, syn=1, rst=1
-        ),
+        "flow": make_flow_from_dict({
+            "Protocol": 6, "Flow Duration": 25,
+            "Total Fwd Packets": 1, "Total Backward Packets": 1,
+            "Fwd Packets Length Total": 0, "Bwd Packets Length Total": 0,
+            "Fwd Packet Length Max": 0, "Bwd Packet Length Min": 0,
+            "Fwd Header Length": 24, "Bwd Header Length": 20,
+            "SYN Flag Count": 1, "RST Flag Count": 1,
+            "Fwd Packets/s": 40000.0, "Bwd Packets/s": 40000.0,
+            "Init Fwd Win Bytes": 1024, "Init Bwd Win Bytes": 0,
+            "Fwd Seg Size Min": 24,
+        }),
     },
     {
-        "name": "Dò quét UDP (PortScan)",
+        "name": "Dò quét cổng Nmap Stealth (PortScan)",
         "expected": "PortScan",
-        "flow": make_flow(
-            protocol=17, duration=10, fwd_pkts=1, bwd_pkts=0,
-            fwd_len=28, bwd_len=0, pkt_rate=100.0, syn=0
-        ),
+        "flow": make_flow_from_dict({
+            "Protocol": 6, "Flow Duration": 10,
+            "Total Fwd Packets": 1, "Total Backward Packets": 1,
+            "Fwd Packets Length Total": 0, "Bwd Packets Length Total": 0,
+            "Fwd Packet Length Max": 0, "Bwd Packet Length Min": 0,
+            "Fwd Header Length": 20, "Bwd Header Length": 20,
+            "RST Flag Count": 1,
+            "Fwd Packets/s": 100000.0, "Bwd Packets/s": 100000.0,
+            "Init Fwd Win Bytes": 1024, "Init Bwd Win Bytes": 0,
+            "Fwd Seg Size Min": 20,
+        }),
     },
 ]
 
