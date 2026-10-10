@@ -264,7 +264,7 @@ XGB_PARAMS = dict(
     early_stopping_rounds = 20,
 )
 
-print("🚀 Bắt đầu 4-Fold Cross Validation...\n")
+print("Bắt đầu 4-Fold Cross Validation...\n")
 
 for fold_idx, (train_idx, val_idx) in enumerate(skf.split(X, y), start=1):
     X_tr, X_val = X[train_idx], X[val_idx]
@@ -321,7 +321,7 @@ for fold_idx, (train_idx, val_idx) in enumerate(skf.split(X, y), start=1):
     all_y_pred.extend(y_pred.tolist())
     all_y_prob.extend(y_pred_proba.tolist())
 
-print("\n✅ Cross Validation hoàn thành!")
+print("\nCross Validation hoàn thành!")
 
 
 # %%

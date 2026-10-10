@@ -97,15 +97,23 @@ Hệ thống hoạt động theo cơ chế **Hybrid (Luật Heuristic + Mô hìn
 │       └── dataset_summary.json                 # Thống kê tổng quan dataset
 │
 ├── frontend/                       # Giao diện người dùng (HTML5, CSS3, Vanilla JS)
-│   ├── dashboard.html              # Dashboard tổng quan (Blue Team)
-│   ├── monitor.html                # Giám sát nhật ký hoạt động thời gian thực
-│   ├── firewall.html               # Quản lý danh sách IP bị chặn
-│   ├── alerts.html                 # Danh sách cảnh báo an ninh chi tiết
-│   └── redteam FE/                 # Giao diện dành cho Red Team
+│   ├── blueteam/                   # Giao diện dành cho Blue Team (Phòng thủ & Giám sát)
+│   │   ├── index.html              # Trang đăng nhập demo
+│   │   ├── dashboard.html          # Dashboard tổng quan
+│   │   ├── monitor.html            # Giám sát nhật ký hoạt động thời gian thực
+│   │   ├── firewall.html           # Quản lý danh sách IP bị chặn
+│   │   ├── alerts.html             # Danh sách cảnh báo an ninh chi tiết
+│   │   ├── attack-log.html         # Nhật ký các cuộc tấn công
+│   │   ├── css/                    # Stylesheet cho Blue Team
+│   │   └── js/                     # Logic kết nối API & render dữ liệu
+│   └── redteam/                    # Giao diện dành cho Red Team (Tấn công mô phỏng)
 │       ├── reddash.html            # Trang điều khiển Red Team
 │       ├── bruteforce.html         # Công cụ giả lập Brute Force
 │       ├── requestflood.html       # Công cụ giả lập Flooding (DoS/DDoS)
-│       └── 403.html                # Màn hình cảnh báo khi IP bị chặn
+│       ├── webattack.html          # Công cụ tấn công Payload Web AI
+│       ├── 403.html                # Màn hình cảnh báo khi IP bị chặn
+│       ├── css/                    # Stylesheet cho Red Team
+│       └── js/                     # Logic phát động tấn công qua API
 │
 ├── nids_train_cells.py             # Các cell code để huấn luyện trên Kaggle
 │
@@ -175,8 +183,8 @@ py backend/main.py
 
 ### 7. Truy Cập Giao Diện Demo
 Không cần cài đặt thêm web server, mở trực tiếp bằng trình duyệt:
-- **Phòng thủ (Blue Team)**: Mở [`frontend/dashboard.html`](frontend/dashboard.html).
-- **Tấn công thử nghiệm (Red Team)**: Mở [`frontend/redteam FE/reddash.html`](frontend/redteam%20FE/reddash.html).
+- **Phòng thủ (Blue Team)**: Mở [`frontend/blueteam/dashboard.html`](frontend/blueteam/dashboard.html) hoặc [`frontend/blueteam/index.html`](frontend/blueteam/index.html).
+- **Tấn công thử nghiệm (Red Team)**: Mở [`frontend/redteam/reddash.html`](frontend/redteam/reddash.html).
 
 ---
 
