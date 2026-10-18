@@ -13,7 +13,9 @@
 
 
 /** Địa chỉ backend (đổi thành IP máy Blue khi demo 2 máy) */
-const API_BASE = "http://172.21.214.96:8080/api";
+const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? `http://${window.location.hostname}:8080/api`
+    : "http://172.21.214.96:8080/api";
 
 
 /**
