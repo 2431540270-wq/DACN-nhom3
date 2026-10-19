@@ -1,22 +1,28 @@
 /**
  * alerts.js — Hiển thị danh sách cảnh báo bảo mật.
- * Đọc dữ liệu từ /api/alerts (lấy từ bảng alerts trong DB).
+ *
+ * Mục tiêu:
+ * - Gọi /api/alerts để lấy danh sách cảnh báo từ backend
+ * - Đếm số lượng theo mức độ: Critical, High, Medium, Low
+ * - Cho phép admin block IP ngay từ danh sách cảnh báo
  */
+
+let alertsIntervalId = null;
 
 /**
- * HÀM LOAD CẢNH BÁO
+ * loadAlerts()
+ * Lấy dữ liệu cảnh báo từ backend và render lên bảng.
+ * Đồng thời tính số lượng cảnh báo theo mức độ để hiển thị trên các card thống kê.
  */
 async function loadAlerts() {
-
     const alerts = await fetchData('/alerts');
+    const tbody = document.getElementById('alerts-list-body');
 
-    const tbody = document.getElementById("alerts-list-body");
     if (!tbody) return;
-    if (!alerts || !Array.isArray(alerts)) return;
+    if (!Array.isArray(alerts)) return;
 
-    tbody.innerHTML = "";
+    tbody.innerHTML = '';
 
-    // Đếm theo mức độ
     let critical = 0;
     let high = 0;
     let medium = 0;
@@ -32,20 +38,20 @@ async function loadAlerts() {
         `;
     } else {
         alerts.forEach(alert => {
-            const level = alert.level || "LOW";
+            const level = alert.level || 'LOW';
             const score = alert.score || 0;
-            const time = alert.time || "-";
-            const attack = alert.attack || "UNKNOWN";
-            const ip = alert.ip || "N/A";
+            const time = alert.time || '-';
+            const attack = alert.attack || 'UNKNOWN';
+            const ip = alert.ip || 'N/A';
 
-            if (level === "CRITICAL") critical++;
-            else if (level === "HIGH") high++;
-            else if (level === "MEDIUM") medium++;
+            if (level === 'CRITICAL') critical++;
+            else if (level === 'HIGH') high++;
+            else if (level === 'MEDIUM') medium++;
             else low++;
 
             const severityClass = `severity-${level.toLowerCase()}`;
+            const row = document.createElement('tr');
 
-            const row = document.createElement("tr");
             row.innerHTML = `
                 <td>${time}</td>
                 <td class="${severityClass}">${level}</td>
@@ -53,21 +59,22 @@ async function loadAlerts() {
                 <td><strong>${ip}</strong></td>
                 <td>${score}</td>
                 <td>
-                    <button class="btn-danger" onclick="blockIP('${ip}')">
-                        BLOCK
-                    </button>
+                    <button class="btn-danger" data-ip="${ip}">BLOCK</button>
                 </td>
             `;
+
+            const blockButton = row.querySelector('button[data-ip]');
+            blockButton.addEventListener('click', () => blockIP(ip));
 
             tbody.appendChild(row);
         });
     }
 
-    // Cập nhật counter cards
-    const countCritical = document.getElementById("count-critical");
-    const countHigh = document.getElementById("count-high");
-    const countMedium = document.getElementById("count-medium");
-    const countLow = document.getElementById("count-low");
+    // Cập nhật các thẻ thống kê ở trên giao diện.
+    const countCritical = document.getElementById('count-critical');
+    const countHigh = document.getElementById('count-high');
+    const countMedium = document.getElementById('count-medium');
+    const countLow = document.getElementById('count-low');
 
     if (countCritical) countCritical.innerText = critical;
     if (countHigh) countHigh.innerText = high;
@@ -76,28 +83,29 @@ async function loadAlerts() {
 }
 
 /**
- * blockIP — Gọi API POST /api/block thật từ trang Alerts.
- * [FIX LỖI 12] Thay thế alert() placeholder
+ * blockIP(ip)
+ * Khi click nút BLOCK trên một cảnh báo, gửi yêu cầu POST /api/block.
  */
 async function blockIP(ip) {
     if (!confirm('Xác nhận BLOCK IP: ' + ip + ' ?')) return;
+
     try {
-        // Dùng API_BASE từ api.js để nhất quán — không hardcode URL
-        const response = await fetch(`${API_BASE}/block`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ip: ip })
-        });
-        const result = await response.json();
+        const result = await postJson('/block', { ip });
         alert(result.success ? '✅ ' + result.message : '❌ ' + result.message);
+        loadAlerts();
     } catch (err) {
         alert('❌ Không thể kết nối Backend: ' + err.message);
     }
 }
 
-// 1s 1 lần
-const alertsInterval = setInterval(loadAlerts, 1000);
+// Khởi chạy khi DOM đã sẵn sàng.
+document.addEventListener('DOMContentLoaded', () => {
+    loadAlerts();
 
-document.addEventListener("DOMContentLoaded", loadAlerts);
+    if (alertsIntervalId) clearInterval(alertsIntervalId);
+    alertsIntervalId = setInterval(loadAlerts, 1000);
+});
 
-window.addEventListener("beforeunload", () => clearInterval(alertsInterval));
+window.addEventListener('beforeunload', () => {
+    if (alertsIntervalId) clearInterval(alertsIntervalId);
+});

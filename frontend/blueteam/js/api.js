@@ -1,99 +1,98 @@
 /**
- * api.js — MODULE GIAO TIẾP VỚI BACKEND (API LAYER)
- * 
- * Mục đích:
- * File này đóng vai trò trung gian giữa Frontend (FE) và Backend (BE).
- * Tất cả các request gọi đến server Java đều phải thông qua đây,
- * thay vì gọi trực tiếp ở nhiều file khác nhau.
- * 
- * Lợi ích:
- * - Dễ quản lý: chỉ cần sửa API_BASE khi đổi địa chỉ server
- * - Tái sử dụng: các file JS khác chỉ cần gọi lại hàm trong đây
- * - Dễ debug: tập trung xử lý lỗi API tại một nơi
- * - Có cơ chế fallback (mock data) khi backend chưa chạy
+ * api.js — File trung tâm để frontend blue team gọi backend.
+ *
+ * Ý tưởng của file này:
+ * - Tất cả request API đều đi qua đây để tránh lặp lại URL ở nhiều chỗ.
+ * - Khi backend chưa chạy, UI vẫn có dữ liệu giả để demo không bị lỗi.
+ * - Một khi đổi server, chỉ cần sửa 1 chỗ: API_BASE.
  */
 
+// Khởi tạo URL gốc của backend.
+// Nếu đang chạy local thì dùng localhost:8080/api,
+// nếu đang chạy trên server thật thì có thể dùng IP cố định.
+// API_BASE quyết định địa chỉ backend mà frontend sẽ gọi.
+// Nếu đang chạy local, ta nối tới localhost:8080; nếu chạy trên server thật, dùng IP cố định.
+const API_BASE = (() => {
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol === 'file:' ? 'http:' : window.location.protocol;
+    const isLocalhost = ['localhost', '127.0.0.1', '::1'].includes(hostname);
 
-/** 
- * ĐỊA CHỈ BACKEND (API SERVER)
- * Khi deploy thật (demo 2 máy), cần đổi localhost → IP máy Blue
- * Ví dụ: http://192.168.1.10:8080/api
- */
-const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? `http://${window.location.hostname}:8080/api`
-    : "http://172.21.214.96:8080/api";
+    if (isLocalhost) {
+        return `${protocol}//${hostname}:8080/api`;
+    }
 
+    return 'http://172.21.214.96:8080/api';
+})();
 
 /**
- * HÀM CHÍNH: fetchData(endpoint)
- * 
- * Chức năng:
- * Gửi request GET đến backend và trả về dữ liệu JSON.
- * 
- * Cơ chế async/await:
- * - Gửi request bất đồng bộ (không làm đứng giao diện)
- * - Chờ server phản hồi rồi xử lý tiếp
- * 
- * @param {string} endpoint - Đường dẫn API (vd: "/logs", "/analyze")
- * @returns {Promise<Object|Array>} Dữ liệu JSON trả về từ server
+ * Hàm GET chung cho mọi endpoint.
+ * Tạo URL, thêm _t để tránh cache browser, rồi fetch dữ liệu JSON.
+ * Nếu có lỗi mạng / server chết, trả về dữ liệu mock để UI không crash.
  */
+// fetchData là hàm GET dùng chung cho mọi màn hình.
+// Nó tự thêm cache-busting và fallback dữ liệu giả khi backend không phản hồi.
 async function fetchData(endpoint) {
+    // Chuẩn hóa endpoint: đảm bảo luôn bắt đầu bằng '/'
+    const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const url = `${API_BASE}${normalizedEndpoint}`;
+    const noCacheUrl = `${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+
     try {
-        // Tạo URL hoàn chỉnh
-        const url = `${API_BASE}${endpoint}`;
-
-        // Thêm timestamp để tránh cache (luôn lấy dữ liệu mới)
-        const noCacheUrl = url.includes('?')
-            ? `${url}&_t=${Date.now()}`
-            : `${url}?_t=${Date.now()}`;
-
-        // Gửi request
         const response = await fetch(noCacheUrl, { cache: 'no-store' });
 
-        // Kiểm tra lỗi HTTP (404, 500,...)
+        // Nếu backend trả lỗi HTTP như 404/500 thì ném lỗi để vào catch.
         if (!response.ok) {
             throw new Error(`HTTP Error: ${response.status} - ${response.statusText}`);
         }
 
-        // Parse JSON từ response
         return await response.json();
-
     } catch (error) {
-
-        // Trường hợp lỗi:
-        // - Backend chưa chạy
-        // - Sai endpoint
-        // - Lỗi server
-        console.warn(`[API] Không thể kết nối backend (${endpoint}). Sử dụng mock data.`, error.message);
-
-        // Trả dữ liệu giả để không crash UI
-        return getMockData(endpoint);
+        console.warn(`[API] Không thể kết nối backend (${normalizedEndpoint}). Dùng mock data.`, error.message);
+        return getMockData(normalizedEndpoint);
     }
 }
 
+/**
+ * Hàm POST chung cho các thao tác như block/unblock.
+ * Dùng để không lặp lại code fetch POST ở từng trang.
+ */
+async function postJson(endpoint, payload = {}) {
+    const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+
+    const response = await fetch(`${API_BASE}${normalizedEndpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `HTTP Error: ${response.status}`);
+    }
+
+    return await response.json();
+}
 
 /**
- * HÀM DỰ PHÒNG: getMockData(endpoint)
- * 
- * Chức năng:
- * Trả dữ liệu giả khi backend không hoạt động,
- * giúp frontend vẫn chạy để test giao diện.
- * 
- * @param {string} endpoint - Endpoint cần giả lập dữ liệu
+ * Dữ liệu giả để test giao diện khi backend chưa chạy.
+ * Mỗi endpoint sẽ trả một giá trị hợp lý để page không báo lỗi.
  */
 function getMockData(endpoint) {
-
-    const now = new Date().toLocaleTimeString();
-
-    // Ví dụ dữ liệu cho endpoint /analyze
     if (endpoint === '/analyze') {
         return {
-            status: "analyzed",
+            status: 'analyzed',
             totalLogs: 0,
             riskAvg: 0
         };
     }
 
-    // Mặc định trả mảng rỗng
+    if (endpoint === '/blocked') {
+        return [];
+    }
+
+    if (endpoint === '/alerts') {
+        return [];
+    }
+
     return [];
 }

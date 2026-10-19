@@ -83,13 +83,16 @@
 
     <script src="js/api.js"></script>
     <script>
-        /** Cache toàn bộ logs để filter phía frontend mà không cần gọi lại API */
+        /**
+         * allLogs
+         * Cache toàn bộ dữ liệu log để filter phía client mà không gọi lại API nhiều lần.
+         */
         let allLogs = [];
+        let attackLogIntervalId = null;
 
         /**
-         * loadAttackLogs — Lấy toàn bộ log từ /api/logs, lọc lấy log nguy hiểm
-         * (status khác PASS), render vào bảng.
-         * [FIX LỖI 11] Thay static data bằng fetch API thật
+         * loadAttackLogs()
+         * Lấy danh sách log từ backend và render vào bảng tấn công.
          */
         async function loadAttackLogs() {
             allLogs = await fetchData('/logs');
@@ -98,16 +101,16 @@
         }
 
         /**
-         * renderLogs — Vẽ danh sách log vào bảng.
+         * renderLogs(logs)
+         * Chỉ hiện những log có dấu hiệu tấn công hoặc trạng thái không phải PASS.
          */
         function renderLogs(logs) {
             const tbody = document.getElementById('attack-log-body');
             if (!tbody) return;
             tbody.innerHTML = '';
 
-            // Chỉ hiển thị log có dấu hiệu tấn công (không phải NORMAL+PASS)
-            const attackLogs = logs.filter(l =>
-                l.attack !== 'NORMAL' || l.status !== 'PASS'
+            const attackLogs = logs.filter(log =>
+                log.attack !== 'NORMAL' || log.status !== 'PASS'
             );
 
             if (attackLogs.length === 0) {
@@ -129,12 +132,14 @@
 
                 const actionLabel =
                     log.attack === 'BRUTE_FORCE' ? 'Brute Force' :
-                        log.attack === 'REQUEST_FLOOD' ? 'Request Flood' : log.attack || 'UNKNOWN';
+                        log.attack === 'REQUEST_FLOOD' ? 'Request Flood' :
+                            log.attack || 'UNKNOWN';
 
                 const aiAction =
                     log.status === 'BLOCKED' ? 'Auto-Blocked' :
                         log.status === 'MONITORING' ? 'Monitoring' :
-                            log.status === 'SUSPICIOUS' ? 'Flagged' : log.status;
+                            log.status === 'SUSPICIOUS' ? 'Flagged' :
+                                log.status;
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -150,13 +155,13 @@
         }
 
         /**
-         * searchLogs — Lọc logs theo IP, loại tấn công, ngày.
-         * [FIX LỖI 11] Thay alert() demo bằng filter thật trên dữ liệu đã load
+         * searchLogs()
+         * Lọc dữ liệu theo IP, loại tấn công và ngày.
          */
         function searchLogs() {
             const ip = document.getElementById('search-ip').value.trim().toLowerCase();
             const type = document.getElementById('filter-type').value;
-            const date = document.getElementById('search-date').value; // YYYY-MM-DD
+            const date = document.getElementById('search-date').value;
 
             const filtered = allLogs.filter(log => {
                 const ipMatch = !ip || (log.ip && log.ip.toLowerCase().includes(ip));
@@ -168,11 +173,17 @@
             renderLogs(filtered);
         }
 
-        // Tải dữ liệu khi DOM ready
-        document.addEventListener('DOMContentLoaded', loadAttackLogs);
+        // Tải dữ liệu lần đầu và refresh mỗi 10 giây.
+document.addEventListener('DOMContentLoaded', () => {
+            loadAttackLogs();
 
-        // Auto-refresh mỗi 10 giây
-        setInterval(loadAttackLogs, 10000);
+            if (attackLogIntervalId) clearInterval(attackLogIntervalId);
+            attackLogIntervalId = setInterval(loadAttackLogs, 10000);
+        });
+
+        window.addEventListener('beforeunload', () => {
+            if (attackLogIntervalId) clearInterval(attackLogIntervalId);
+        });
     </script>
 </body>
 
