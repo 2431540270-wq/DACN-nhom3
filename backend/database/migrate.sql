@@ -48,6 +48,23 @@ BEGIN
         SELECT 'SKIP: Column attack_type already exists.' AS migration_result;
     END IF;
 
+    -- Fix: score column
+    IF NOT EXISTS (
+        SELECT 1
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'security_logs'
+          AND TABLE_NAME   = 'logs'
+          AND COLUMN_NAME  = 'score'
+    ) THEN
+        ALTER TABLE logs
+            ADD COLUMN score DOUBLE DEFAULT 0
+            AFTER attack_type;
+
+        SELECT 'OK: Column score added.' AS migration_result;
+    ELSE
+        SELECT 'SKIP: Column score already exists.' AS migration_result;
+    END IF;
+
     -- Fix: description column
     IF NOT EXISTS (
         SELECT 1

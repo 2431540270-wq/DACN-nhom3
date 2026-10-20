@@ -210,3 +210,73 @@ button {
 .login-box h2 { margin-bottom: 30px; color: var(--accent); }
 .login-box input { width: 100%; margin-bottom: 20px; box-sizing: border-box; }
 .login-box button { width: 100%; }
+
+/* ============================================================ */
+/* RED TEAM SPECIFIC STYLES & OVERRIDES                         */
+/* ============================================================ */
+
+:root {
+    --accent: #ff4d4d; /* Đổi accent sang đỏ cho Red Team */
+}
+
+.attack-container {
+    background: var(--card-bg, #151921);
+    border: 1px solid var(--border, #30363d);
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 25px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.attack-container h2 {
+    margin-top: 0;
+    color: var(--accent);
+    font-size: 1.3rem;
+    margin-bottom: 15px;
+}
+
+.log-box {
+    background: #000;
+    border: 1px solid var(--border, #30363d);
+    border-radius: 8px;
+    padding: 15px;
+    max-height: 320px;
+    overflow-y: auto;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 13px;
+    color: #4dff88;
+    line-height: 1.6;
+    margin-top: 15px;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.intro-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px 20px;
+}
+
+.intro-box {
+    background: var(--card-bg, #151921);
+    border: 1px solid var(--border, #30363d);
+    border-radius: 12px;
+    padding: 35px 45px;
+    max-width: 720px;
+    text-align: center;
+    box-shadow: 0 4px 25px rgba(255, 77, 77, 0.15);
+}
+
+.intro-box h2 {
+    color: var(--accent);
+    margin-bottom: 15px;
+    font-size: 1.6rem;
+}
+
+.intro-box p {
+    color: var(--text-muted);
+    line-height: 1.8;
+    font-size: 1rem;
+}
+

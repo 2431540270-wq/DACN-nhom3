@@ -31,14 +31,15 @@ async function loadFirewall() {
 
     blocked.forEach(ip => {
         const tr = document.createElement("tr");
-        const blockTime = new Date().toLocaleString('vi-VN');
+        const ipStr = (typeof ip === 'object') ? (ip.ip || ip.ip_address) : ip;
+        const blockTime = (typeof ip === 'object' && ip.blocked_at) ? ip.blocked_at : 'Đang hiệu lực';
 
         tr.innerHTML = `
-        <td><strong>${ip}</strong></td>
+        <td><strong>${ipStr}</strong></td>
         <td>${blockTime}</td>
         <td><span class="status-badge">Nghi ngờ tấn công mạng</span></td>
         <td>
-            <button class="btn-success" onclick="unblock('${ip}')">
+            <button class="btn-success" onclick="unblock('${ipStr}')">
                 GỠ CHẶN
             </button>
         </td>
@@ -78,7 +79,7 @@ async function executeBlock() {
     }
 
     try {
-        const response = await fetch('http://172.21.214.96:8080/api/block', {
+        const response = await fetch(`${API_BASE}/block`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ip: ip })
@@ -103,7 +104,7 @@ async function executeBlock() {
 async function unblock(ip) {
     if (!confirm('Xác nhận gỡ chặn IP: ' + ip + ' ?')) return;
     try {
-        const response = await fetch('http://172.21.214.96:8080/api/unblock', {
+        const response = await fetch(`${API_BASE}/unblock`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ip: ip })

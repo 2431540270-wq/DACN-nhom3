@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import pickle
 import warnings
 from typing import Dict, Any, List, Optional, Union
@@ -20,6 +21,41 @@ try:
     XGB_AVAILABLE = True
 except ImportError:
     XGB_AVAILABLE = False
+
+
+FEATURE_COLS = [
+    "Protocol",
+    "Flow Duration", "Total Fwd Packets", "Total Backward Packets",
+    "Fwd Packets Length Total", "Bwd Packets Length Total",
+    "Fwd Packet Length Max", "Fwd Packet Length Min",
+    "Fwd Packet Length Mean", "Fwd Packet Length Std",
+    "Bwd Packet Length Max", "Bwd Packet Length Min",
+    "Bwd Packet Length Mean", "Bwd Packet Length Std",
+    "Flow Bytes/s", "Flow Packets/s",
+    "Flow IAT Mean", "Flow IAT Std", "Flow IAT Max", "Flow IAT Min",
+    "Fwd IAT Total", "Fwd IAT Mean", "Fwd IAT Std",
+    "Fwd IAT Max", "Fwd IAT Min",
+    "Bwd IAT Total", "Bwd IAT Mean", "Bwd IAT Std",
+    "Bwd IAT Max", "Bwd IAT Min",
+    "Fwd PSH Flags", "Bwd PSH Flags", "Fwd URG Flags", "Bwd URG Flags",
+    "Fwd Header Length", "Bwd Header Length",
+    "Fwd Packets/s", "Bwd Packets/s",
+    "Packet Length Min", "Packet Length Max",
+    "Packet Length Mean", "Packet Length Std", "Packet Length Variance",
+    "FIN Flag Count", "SYN Flag Count", "RST Flag Count",
+    "PSH Flag Count", "ACK Flag Count", "URG Flag Count",
+    "CWE Flag Count", "ECE Flag Count",
+    "Down/Up Ratio", "Avg Packet Size",
+    "Avg Fwd Segment Size", "Avg Bwd Segment Size",
+    "Fwd Avg Bytes/Bulk", "Fwd Avg Packets/Bulk", "Fwd Avg Bulk Rate",
+    "Bwd Avg Bytes/Bulk", "Bwd Avg Packets/Bulk", "Bwd Avg Bulk Rate",
+    "Subflow Fwd Packets", "Subflow Fwd Bytes",
+    "Subflow Bwd Packets", "Subflow Bwd Bytes",
+    "Init Fwd Win Bytes", "Init Bwd Win Bytes",
+    "Fwd Act Data Packets", "Fwd Seg Size Min",
+    "Active Mean", "Active Std", "Active Max", "Active Min",
+    "Idle Mean", "Idle Std", "Idle Max", "Idle Min",
+]
 
 
 class AIDetector:
@@ -149,7 +185,11 @@ class AIDetector:
         try:
             # Chuẩn bị vector đặc trưng
             if isinstance(features, dict):
-                feat_values = list(features.values())
+                # Nếu dict có các key trùng với FEATURE_COLS thì map đúng thứ tự 77 đặc trưng
+                if any(k in features for k in FEATURE_COLS):
+                    feat_values = [float(features.get(col, 0.0)) for col in FEATURE_COLS]
+                else:
+                    feat_values = list(features.values())
             else:
                 feat_values = list(features)
 
@@ -213,6 +253,98 @@ class AIDetector:
                 "probabilities": {},
                 "status": f"ERROR: {str(e)}"
             }
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # DỰ ĐOÁN PAYLOAD WEB (SQLi / XSS / Path Traversal / Command Injection)
+    # ─────────────────────────────────────────────────────────────────────────
+    def predict_payload(self, text: str) -> Dict[str, Any]:
+        """
+        Phân tích chuỗi payload HTTP / Web bằng rule-based regex detection.
+        Hỗ trợ nhận diện các mẫu SQLi, XSS, Path Traversal, Command Injection.
+        """
+        if not text or not isinstance(text, str):
+            return {
+                "is_attack": False,
+                "attack_type": "norm",
+                "risk_score": 0,
+                "confidence": 0.95,
+                "details": "Empty payload"
+            }
+
+        patterns = {
+            "sqli": [
+                r"(\b(UNION(\s+ALL)?|SELECT|DROP|INSERT|DELETE|UPDATE)\b)",
+                r"('.*--)",
+                r"('(\s*)[oO][rR](\s*)'\d+'\s*=\s*'\d+)",
+                r"('(\s*)[oO][rR](\s*)\d+\s*=\s*\d+)",
+                r"(\b(ORDER|GROUP)\s+BY\b)",
+                r"(\bHAVING\b)",
+                r"(\b(SLEEP|BENCHMARK)\s*\()",
+            ],
+            "xss": [
+                r"(<script[^>]*>.*?</script>)",
+                r"(javascript\s*:)",
+                r"(on(load|error|click|mouseover|submit)\s*=)",
+                r"(alert\s*\(.*?\))",
+                r"(<img[^>]+src=[^>]*>)",
+                r"(<svg[^>]*>)",
+                r"(eval\s*\(.*?\))",
+            ],
+            "path_traversal": [
+                r"(\.\./|\.\.\\)",
+                r"(/etc/(passwd|shadow|hosts))",
+                r"(c:\\windows\\system32)",
+                r"(cmd\.exe|boot\.ini)",
+            ],
+            "cmdi": [
+                r"(;\s*(ls|dir|cat|whoami|id|uname|pwd)\b)",
+                r"(\|\s*(ls|dir|cat|whoami|id|uname)\b)",
+                r"(&&\s*(ls|dir|cat|whoami|id|uname)\b)",
+                r"(\$\(.*?\))",
+                r"(`.*?`)",
+                r"(\bexec\s*\()",
+            ]
+        }
+
+        matched_types = {}
+        for attack_name, pat_list in patterns.items():
+            matches = []
+            for pat in pat_list:
+                if re.search(pat, text, re.IGNORECASE):
+                    matches.append(pat)
+            if matches:
+                matched_types[attack_name] = len(matches)
+
+        if not matched_types:
+            return {
+                "is_attack": False,
+                "attack_type": "norm",
+                "risk_score": 5,
+                "confidence": 0.90,
+                "details": "No attack pattern detected"
+            }
+
+        primary_attack = max(matched_types.items(), key=lambda x: x[1])
+        attack_type = primary_attack[0]
+        match_count = sum(matched_types.values())
+
+        if match_count >= 3:
+            risk_score = 85
+            confidence = 0.95
+        elif match_count == 2:
+            risk_score = 65
+            confidence = 0.80
+        else:
+            risk_score = 45
+            confidence = 0.65
+
+        return {
+            "is_attack": True,
+            "attack_type": attack_type,
+            "risk_score": risk_score,
+            "confidence": confidence,
+            "details": f"Matched {match_count} pattern(s) for {attack_type}"
+        }
 
     # ─────────────────────────────────────────────────────────────────────────
     # TRẠNG THÁI HỆ THỐNG

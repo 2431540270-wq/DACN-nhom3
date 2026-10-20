@@ -19,9 +19,13 @@
  * Khi deploy thật (demo 2 máy), cần đổi localhost → IP máy Blue
  * Ví dụ: http://192.168.1.10:8080/api
  */
-const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? `http://${window.location.hostname}:8080/api`
-    : "http://172.21.214.96:8080/api";
+const API_BASE = (() => {
+    const host = window.location.hostname;
+    if (!host || host === 'localhost' || host === '127.0.0.1') {
+        return 'http://localhost:8080/api';
+    }
+    return `http://${host}:8080/api`;
+})();
 
 
 /**

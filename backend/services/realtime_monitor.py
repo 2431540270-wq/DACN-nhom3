@@ -42,8 +42,8 @@ class RealTimeMonitor(threading.Thread):
                     if DatabaseConnection.is_available():
                         self.log_dao.update_logs(logs)
 
-                    recent = logs[-5:] if len(logs) >= 5 else logs
-                    print("--- Last 5 Log Entries ---")
+                    recent = logs[:5] if len(logs) >= 5 else logs
+                    print("--- Top 5 Most Recent Log Entries ---")
                     for l in recent:
                         print(f"{l.get_time()} | IP: {l.get_ip()} | Attack: {l.get_attack_type()} | Risk: {l.get_score()}")
                 else:

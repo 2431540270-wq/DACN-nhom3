@@ -35,12 +35,6 @@ class SecurityBot:
             all_ips.update(request_map.keys())
             all_ips.update(success_map.keys())
 
-            existing_ips = set(self.last_fail_count.keys())
-            for old_ip in existing_ips:
-                if old_ip not in all_ips:
-                    self.last_fail_count[old_ip] = self.last_fail_count.get(old_ip, 0)
-                    self.last_request_count[old_ip] = self.last_request_count.get(old_ip, 0)
-
             for ip in all_ips:
                 if self.firewall.is_blocked(ip):
                     for log in logs:

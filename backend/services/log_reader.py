@@ -21,18 +21,26 @@ class LogReader:
                     if not line_str:
                         continue
 
-                    parts = line_str.split()
-                    if len(parts) < 2:
+                    tokens = line_str.split()
+                    if len(tokens) < 2:
                         print(f"[LogReader] Skipping malformed line: {line_str}")
                         continue
 
-                    time_val = parts[0]
-                    ip_val = parts[1]
-                    action_val = parts[2] if len(parts) > 2 else "REQUEST"
+                    # Kiểm tra xem tokens[0] và tokens[1] có phải là ngày và giờ (YYYY-MM-DD HH:MM:SS)
+                    if len(tokens) >= 3 and "-" in tokens[0] and ":" in tokens[1]:
+                        time_val = f"{tokens[0]} {tokens[1]}"
+                        ip_val = tokens[2]
+                        action_val = tokens[3] if len(tokens) > 3 else "REQUEST"
+                        desc = " ".join(tokens[4:]) if len(tokens) > 4 else None
+                    else:
+                        time_val = tokens[0]
+                        ip_val = tokens[1]
+                        action_val = tokens[2] if len(tokens) > 2 else "REQUEST"
+                        desc = " ".join(tokens[3:]) if len(tokens) > 3 else None
 
                     entry = LogEntry(time_val, ip_val, action_val)
-                    if len(parts) > 3:
-                        entry.set_description(" ".join(parts[3:]))
+                    if desc:
+                        entry.set_description(desc)
                     logs.append(entry)
         except Exception as e:
             print(f"[LogReader] Error reading file {file_name}: {e}")

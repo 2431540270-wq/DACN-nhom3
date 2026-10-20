@@ -5,3 +5,4 @@ xgboost>=1.7.0
 
 # Optional database connector (if MySQL is running)
 mysql-connector-python>=8.0.0
+pymysql>=1.0.0

@@ -16,7 +16,7 @@ class LogDAO:
 
         try:
             cursor = conn.cursor()
-            desc = f"{log.get_action()} from IP {log.get_ip()}"
+            desc = log.get_description() if log.get_description() else f"{log.get_action()} from IP {log.get_ip()}"
             cursor.execute(sql, (
                 log.get_time(), log.get_ip(), log.get_action(),
                 log.get_status(), log.get_attack_type(), log.get_score(), desc
@@ -45,7 +45,7 @@ class LogDAO:
             data = [
                 (l.get_time(), l.get_ip(), l.get_action(),
                  l.get_status(), l.get_attack_type(), l.get_score(),
-                 f"{l.get_action()} from IP {l.get_ip()}")
+                 l.get_description() if l.get_description() else f"{l.get_action()} from IP {l.get_ip()}")
                 for l in logs
             ]
             cursor.executemany(sql, data)
@@ -180,17 +180,17 @@ class LogDAO:
 
         try:
             cursor = conn.cursor()
-            delete_logs_sql = "DELETE FROM logs WHERE ip_address = %s"
-            cursor.execute(delete_logs_sql, (ip,))
-            deleted_logs = cursor.rowcount
-            print(f"[DB] unblockInDB: Deleted {deleted_logs} log(s) for IP: {ip}")
-            total += deleted_logs
+            update_logs_sql = "UPDATE logs SET status = 'UNBLOCKED' WHERE ip_address = %s AND status = 'BLOCKED'"
+            cursor.execute(update_logs_sql, (ip,))
+            updated_logs = cursor.rowcount
+            print(f"[DB] unblockInDB: Updated {updated_logs} log(s) for IP: {ip}")
+            total += updated_logs
 
-            delete_alerts_sql = "DELETE FROM alerts WHERE ip_address = %s"
-            cursor.execute(delete_alerts_sql, (ip,))
-            deleted_alerts = cursor.rowcount
-            print(f"[DB] unblockInDB: Deleted {deleted_alerts} alert(s) for IP: {ip}")
-            total += deleted_alerts
+            update_alerts_sql = "UPDATE alerts SET alert_level = 'RESOLVED' WHERE ip_address = %s"
+            cursor.execute(update_alerts_sql, (ip,))
+            updated_alerts = cursor.rowcount
+            print(f"[DB] unblockInDB: Updated {updated_alerts} alert(s) for IP: {ip}")
+            total += updated_alerts
 
             conn.commit()
             cursor.close()
