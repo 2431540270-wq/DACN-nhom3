@@ -72,6 +72,18 @@ async function refreshMonitorLogs() {
         tbody.appendChild(row);
     });
 
+    // Cập nhật các thẻ thống kê
+    let highRiskCount = 0;
+    let blockedCount = 0;
+    logs.forEach(l => {
+        if ((l.score || 0) >= 30) highRiskCount++;
+        if (l.status === 'BLOCKED') blockedCount++;
+    });
+    const statRisk = document.getElementById('monitor-stat-risk');
+    if (statRisk) statRisk.innerText = highRiskCount;
+    const statBlocked = document.getElementById('monitor-stat-blocked');
+    if (statBlocked) statBlocked.innerText = blockedCount;
+
     // Cập nhật trạng thái ở góc trên header của trang monitor.
     const indicator = document.getElementById('update-indicator');
     if (indicator) {

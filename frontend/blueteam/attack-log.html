@@ -47,6 +47,9 @@
                             <option value="all">Tất cả</option>
                             <option value="BRUTE_FORCE">Brute Force</option>
                             <option value="REQUEST_FLOOD">Request Flood</option>
+                            <option value="WEB_SQLI">SQL Injection</option>
+                            <option value="WEB_XSS">XSS (Cross-Site Scripting)</option>
+                            <option value="WEB_CMD">Command Injection</option>
                             <option value="NORMAL">Bình thường</option>
                         </select>
                     </div>
@@ -152,13 +155,15 @@
                             log.status === 'SUSPICIOUS' ? 'Flagged' :
                                 log.status;
 
+                const displayPayload = log.description || log.action || '-';
+
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>#${String(idx + 1).padStart(3, '0')}</td>
                     <td>${log.time || '-'}</td>
                     <td>${log.ip || 'N/A'}</td>
                     <td class="${severityClass}">${actionLabel}</td>
-                    <td><code>${log.action || '-'}</code></td>
+                    <td><code>${displayPayload}</code></td>
                     <td><span class="status-badge" style="color:var(--${log.status === 'BLOCKED' ? 'critical' : 'high'});">${aiAction}</span></td>
                 `;
                 tbody.appendChild(tr);
@@ -176,7 +181,7 @@
 
             const filtered = allLogs.filter(log => {
                 const ipMatch = !ip || (log.ip && log.ip.toLowerCase().includes(ip));
-                const typeMatch = type === 'all' || log.attack === type;
+                const typeMatch = type === 'all' || log.attack === type || (log.attack && log.attack.includes(type));
                 const dateMatch = !date || (log.time && log.time.startsWith(date));
                 return ipMatch && typeMatch && dateMatch;
             });

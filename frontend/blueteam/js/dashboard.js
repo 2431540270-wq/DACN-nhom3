@@ -49,6 +49,24 @@ async function loadLogs() {
             statAlerts.innerText = alertCount;
         }
 
+        let critCount = 0;
+        let highCount = 0;
+        let medCount = 0;
+        if (Array.isArray(alerts)) {
+            alerts.forEach(a => {
+                const lvl = (a.level || '').toUpperCase();
+                if (lvl === 'CRITICAL') critCount++;
+                else if (lvl === 'HIGH') highCount++;
+                else if (lvl === 'MEDIUM') medCount++;
+            });
+        }
+        const elCrit = document.getElementById('dash-count-critical');
+        if (elCrit) elCrit.innerText = critCount;
+        const elHigh = document.getElementById('dash-count-high');
+        if (elHigh) elHigh.innerText = highCount;
+        const elMed = document.getElementById('dash-count-medium');
+        if (elMed) elMed.innerText = medCount;
+
         const statBlocked = document.getElementById('stat-blocked');
         if (statBlocked) {
             statBlocked.innerText = blocked.length || 0;

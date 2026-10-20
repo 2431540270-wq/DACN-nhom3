@@ -48,14 +48,16 @@ async function loadFirewall() {
         <td>${blockTime}</td>
         <td><span class="status-badge">Nghi ngờ tấn công mạng</span></td>
         <td>
-            <button class="btn-success" onclick="unblock('${ip}')">
+            <button class="btn-success" data-ip="${ip}">
                 GỠ CHẶN
             </button>
         </td>
         `;
 
         const actionButton = tr.querySelector('button[data-ip]');
-        actionButton.addEventListener('click', () => unblock(ip));
+        if (actionButton) {
+            actionButton.addEventListener('click', () => unblock(ip));
+        }
 
         tbody.appendChild(tr);
     });
@@ -97,18 +99,13 @@ async function executeBlock() {
     }
 
     try {
-        const response = await fetch('http://172.21.214.96:8080/api/block', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ip: ip })
-        });
-        const result = await response.json();
+        const result = await postJson('/block', { ip: ip });
         if (result.success) {
             alert('✅ ' + result.message);
             input.value = '';
             loadFirewall();
         } else {
-            alert('❌ Lỗi: ' + result.message);
+            alert('❌ Lỗi: ' + (result.message || 'Không thể chặn IP'));
         }
     } catch (err) {
         alert('❌ Không thể kết nối Backend: ' + err.message);
@@ -123,17 +120,12 @@ async function unblock(ip) {
     if (!confirm('Xác nhận gỡ chặn IP: ' + ip + ' ?')) return;
 
     try {
-        const response = await fetch('http://172.21.214.96:8080/api/unblock', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ip: ip })
-        });
-        const result = await response.json();
+        const result = await postJson('/unblock', { ip: ip });
         if (result.success) {
             alert('✅ ' + result.message);
             loadFirewall();
         } else {
-            alert('❌ Lỗi: ' + result.message);
+            alert('❌ Lỗi: ' + (result.message || 'Không thể gỡ chặn'));
         }
     } catch (err) {
         alert('❌ Không thể kết nối Backend: ' + err.message);

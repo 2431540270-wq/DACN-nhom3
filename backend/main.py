@@ -120,12 +120,14 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
                 limit_logs = logs_to_send[:100]
                 resp = [
                     {
+                        "id": l.get_id(),
                         "time": l.get_time(),
                         "ip": l.get_ip(),
                         "action": l.get_action(),
                         "attack": l.get_attack_type(),
                         "score": l.get_score(),
-                        "status": l.get_status()
+                        "status": l.get_status(),
+                        "description": l.get_description()
                     }
                     for l in limit_logs
                 ]
