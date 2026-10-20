@@ -26,70 +26,84 @@
             <h1>Tra cứu Nhật ký Tấn công</h1>
         </header>
 
-        <!-- Form tìm kiếm / bộ lọc -->
-        <div class="card" style="margin-bottom: 25px;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 15px; align-items: end;">
-                <div>
-                    <label style="display: block; margin-bottom: 8px; font-size: 0.8rem;">Tìm theo IP:</label>
-                    <input type="text" id="search-ip" placeholder="192.168.x.x" style="width: 100%;">
+        <div class="dashboard-shell">
+            <div class="panel alert-panel">
+                <div class="panel-header">
+                    <h3>Bộ lọc nhật ký</h3>
+                    <span class="status-badge monitor-live-badge">Live Search</span>
                 </div>
-                <div>
-                    <label style="display: block; margin-bottom: 8px; font-size: 0.8rem;">Loại tấn công:</label>
-                    <!-- [FIX] Sửa options khớp với attack types từ backend
-                         Backend trả về: BRUTE_FORCE, REQUEST_FLOOD, NORMAL
-                         Trước đây: DDoS, SQLi, XSS (không khớp) -->
-                    <select id="filter-type" style="width: 100%;">
-                        <option value="all">Tất cả</option>
-                        <option value="BRUTE_FORCE">Brute Force</option>
-                        <option value="REQUEST_FLOOD">Request Flood</option>
-                        <option value="NORMAL">Bình thường</option>
-                    </select>
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 8px; font-size: 0.8rem;">Thời gian:</label>
-                    <input type="date" id="search-date" style="width: 100%;">
-                </div>
-                <button class="btn-primary" onclick="searchLogs()">TÌM KIẾM</button>
-            </div>
-        </div>
 
-        <!-- Bảng nhật ký tấn công -->
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Thời Gian</th>
-                        <th>IP Nguồn</th>
-                        <th>Loại Tấn Công</th>
-                        <th>Payload/Chi tiết</th>
-                        <th>Hành Động AI</th>
-                    </tr>
-                </thead>
-                <tbody id="attack-log-body">
-                    <!-- Data mẫu (static demo) -->
-                    <tr>
-                        <td>#001</td>
-                        <td>2026-03-11 10:05:22</td>
-                        <td>45.12.33.101</td>
-                        <td class="severity-critical">Brute Force</td>
-                        <td><code>10 LOGIN_FAIL liên tiếp</code></td>
-                        <td><span class="status-badge" style="color: var(--critical);">Auto-Blocked</span></td>
-                    </tr>
-                </tbody>
-            </table>
+                <div class="log-search-form">
+                    <div>
+                        <label>Tìm theo IP:</label>
+                        <input type="text" id="search-ip" placeholder="192.168.x.x">
+                    </div>
+                    <div>
+                        <label>Loại tấn công:</label>
+                        <!-- [FIX] Sửa options khớp với attack types từ backend
+                             Backend trả về: BRUTE_FORCE, REQUEST_FLOOD, NORMAL
+                             Trước đây: DDoS, SQLi, XSS (không khớp) -->
+                        <select id="filter-type">
+                            <option value="all">Tất cả</option>
+                            <option value="BRUTE_FORCE">Brute Force</option>
+                            <option value="REQUEST_FLOOD">Request Flood</option>
+                            <option value="NORMAL">Bình thường</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Thời gian:</label>
+                        <input type="date" id="search-date">
+                    </div>
+                    <button class="btn-primary" onclick="searchLogs()">TÌM KIẾM</button>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <h3>Nhật ký tấn công</h3>
+                </div>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Thời Gian</th>
+                                <th>IP Nguồn</th>
+                                <th>Loại Tấn Công</th>
+                                <th>Payload/Chi tiết</th>
+                                <th>Hành Động AI</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attack-log-body">
+                            <!-- Data mẫu (static demo) -->
+                            <tr>
+                                <td>#001</td>
+                                <td>2026-03-11 10:05:22</td>
+                                <td>45.12.33.101</td>
+                                <td class="severity-critical">Brute Force</td>
+                                <td><code>10 LOGIN_FAIL liên tiếp</code></td>
+                                <td><span class="status-badge" style="color: var(--critical);">Auto-Blocked</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
     <script src="js/api.js"></script>
     <script>
-        /** Cache toàn bộ logs để filter phía frontend mà không cần gọi lại API */
+        /**
+         * allLogs
+         * Cache toàn bộ dữ liệu log để filter phía client mà không gọi lại API nhiều lần.
+         */
         let allLogs = [];
+        let attackLogIntervalId = null;
 
         /**
-         * loadAttackLogs — Lấy toàn bộ log từ /api/logs, lọc lấy log nguy hiểm
-         * (status khác PASS), render vào bảng.
-         * [FIX LỖI 11] Thay static data bằng fetch API thật
+         * loadAttackLogs()
+         * Lấy danh sách log từ backend và render vào bảng tấn công.
          */
         async function loadAttackLogs() {
             allLogs = await fetchData('/logs');
@@ -98,16 +112,16 @@
         }
 
         /**
-         * renderLogs — Vẽ danh sách log vào bảng.
+         * renderLogs(logs)
+         * Chỉ hiện những log có dấu hiệu tấn công hoặc trạng thái không phải PASS.
          */
         function renderLogs(logs) {
             const tbody = document.getElementById('attack-log-body');
             if (!tbody) return;
             tbody.innerHTML = '';
 
-            // Chỉ hiển thị log có dấu hiệu tấn công (không phải NORMAL+PASS)
-            const attackLogs = logs.filter(l =>
-                l.attack !== 'NORMAL' || l.status !== 'PASS'
+            const attackLogs = logs.filter(log =>
+                log.attack !== 'NORMAL' || log.status !== 'PASS'
             );
 
             if (attackLogs.length === 0) {
@@ -129,12 +143,14 @@
 
                 const actionLabel =
                     log.attack === 'BRUTE_FORCE' ? 'Brute Force' :
-                        log.attack === 'REQUEST_FLOOD' ? 'Request Flood' : log.attack || 'UNKNOWN';
+                        log.attack === 'REQUEST_FLOOD' ? 'Request Flood' :
+                            log.attack || 'UNKNOWN';
 
                 const aiAction =
                     log.status === 'BLOCKED' ? 'Auto-Blocked' :
                         log.status === 'MONITORING' ? 'Monitoring' :
-                            log.status === 'SUSPICIOUS' ? 'Flagged' : log.status;
+                            log.status === 'SUSPICIOUS' ? 'Flagged' :
+                                log.status;
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -150,13 +166,13 @@
         }
 
         /**
-         * searchLogs — Lọc logs theo IP, loại tấn công, ngày.
-         * [FIX LỖI 11] Thay alert() demo bằng filter thật trên dữ liệu đã load
+         * searchLogs()
+         * Lọc dữ liệu theo IP, loại tấn công và ngày.
          */
         function searchLogs() {
             const ip = document.getElementById('search-ip').value.trim().toLowerCase();
             const type = document.getElementById('filter-type').value;
-            const date = document.getElementById('search-date').value; // YYYY-MM-DD
+            const date = document.getElementById('search-date').value;
 
             const filtered = allLogs.filter(log => {
                 const ipMatch = !ip || (log.ip && log.ip.toLowerCase().includes(ip));
@@ -168,11 +184,17 @@
             renderLogs(filtered);
         }
 
-        // Tải dữ liệu khi DOM ready
-        document.addEventListener('DOMContentLoaded', loadAttackLogs);
+        // Tải dữ liệu lần đầu và refresh mỗi 10 giây.
+document.addEventListener('DOMContentLoaded', () => {
+            loadAttackLogs();
 
-        // Auto-refresh mỗi 10 giây
-        setInterval(loadAttackLogs, 10000);
+            if (attackLogIntervalId) clearInterval(attackLogIntervalId);
+            attackLogIntervalId = setInterval(loadAttackLogs, 10000);
+        });
+
+        window.addEventListener('beforeunload', () => {
+            if (attackLogIntervalId) clearInterval(attackLogIntervalId);
+        });
     </script>
 </body>
 

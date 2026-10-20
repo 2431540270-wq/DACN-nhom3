@@ -26,37 +26,45 @@
             <h1>Quản lý Firewall &amp; Block List</h1>
         </header>
 
-        <!-- Form chặn IP thủ công -->
-        <div class="card"
-            style="margin-bottom: 30px; background: rgba(255, 77, 77, 0.05); border: 1px dashed var(--critical);">
-            <h3>Chặn địa chỉ IP thủ công</h3>
-            <div style="display: flex; gap: 15px; margin-top: 15px;">
-                <input type="text" id="manual-ip" placeholder="Nhập IP (VD: 192.168.1.50)" style="flex: 1;">
-                <select id="manual-reason">
-                    <option value="Manual Block">Thao tác quản trị</option>
-                    <option value="Policy Violation">Vi phạm chính sách</option>
-                    <option value="Suspicious Activity">Hoạt động nghi vấn</option>
-                </select>
-                <button class="btn-danger" onclick="executeBlock()">THỰC THI CHẶN</button>
-            </div>
-        </div>
+        <div class="dashboard-shell">
+            <div class="panel alert-panel">
+                <div class="panel-header">
+                    <h3>Chặn địa chỉ IP thủ công</h3>
+                    <span class="status-badge status-online">Control</span>
+                </div>
 
-        <!-- Bảng danh sách IP bị chặn -->
-        <h2>Danh sách IP đang bị chặn</h2>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Địa Chỉ IP</th>
-                        <th>Thời Gian Chặn</th>
-                        <th>Lý Do</th>
-                        <th>Thao Tác</th>
-                    </tr>
-                </thead>
-                <tbody id="firewall-body">
-                    <!-- Data được render bởi firewall.js -->
-                </tbody>
-            </table>
+                <div class="manual-block-form">
+                    <input type="text" id="manual-ip" placeholder="Nhập IP (VD: 192.168.1.50)">
+                    <select id="manual-reason">
+                        <option value="Manual Block">Thao tác quản trị</option>
+                        <option value="Policy Violation">Vi phạm chính sách</option>
+                        <option value="Suspicious Activity">Hoạt động nghi vấn</option>
+                    </select>
+                    <button class="btn-danger" onclick="executeBlock()">THỰC THI CHẶN</button>
+                </div>
+            </div>
+
+            <div class="panel alert-panel">
+                <div class="panel-header">
+                    <h3>Danh sách IP đang bị chặn</h3>
+                </div>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Địa Chỉ IP</th>
+                                <th>Thời Gian Chặn</th>
+                                <th>Lý Do</th>
+                                <th>Thao Tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="firewall-body">
+                            <!-- Data được render bởi firewall.js -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 

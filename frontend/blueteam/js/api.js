@@ -19,85 +19,80 @@
  * Khi deploy thật (demo 2 máy), cần đổi localhost → IP máy Blue
  * Ví dụ: http://192.168.1.10:8080/api
  */
-const API_BASE = (() => {
-    const host = window.location.hostname;
-    if (!host || host === 'localhost' || host === '127.0.0.1') {
-        return 'http://localhost:8080/api';
-    }
-    return `http://${host}:8080/api`;
-})();
+const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? `http://${window.location.hostname}:8080/api`
+    : "http://172.21.214.96:8080/api";
 
 
 /**
- * HÀM CHÍNH: fetchData(endpoint)
- * 
- * Chức năng:
- * Gửi request GET đến backend và trả về dữ liệu JSON.
- * 
- * Cơ chế async/await:
- * - Gửi request bất đồng bộ (không làm đứng giao diện)
- * - Chờ server phản hồi rồi xử lý tiếp
- * 
- * @param {string} endpoint - Đường dẫn API (vd: "/logs", "/analyze")
- * @returns {Promise<Object|Array>} Dữ liệu JSON trả về từ server
+ * Hàm GET chung cho mọi endpoint.
+ * Tạo URL, thêm _t để tránh cache browser, rồi fetch dữ liệu JSON.
+ * Nếu có lỗi mạng / server chết, trả về dữ liệu mock để UI không crash.
  */
+// fetchData là hàm GET dùng chung cho mọi màn hình.
+// Nó tự thêm cache-busting và fallback dữ liệu giả khi backend không phản hồi.
 async function fetchData(endpoint) {
+    // Chuẩn hóa endpoint: đảm bảo luôn bắt đầu bằng '/'
+    const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const url = `${API_BASE}${normalizedEndpoint}`;
+    const noCacheUrl = `${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+
     try {
-        // Tạo URL hoàn chỉnh
-        const url = `${API_BASE}${endpoint}`;
-
-        // Thêm timestamp để tránh cache (luôn lấy dữ liệu mới)
-        const noCacheUrl = url.includes('?')
-            ? `${url}&_t=${Date.now()}`
-            : `${url}?_t=${Date.now()}`;
-
-        // Gửi request
         const response = await fetch(noCacheUrl, { cache: 'no-store' });
 
-        // Kiểm tra lỗi HTTP (404, 500,...)
+        // Nếu backend trả lỗi HTTP như 404/500 thì ném lỗi để vào catch.
         if (!response.ok) {
             throw new Error(`HTTP Error: ${response.status} - ${response.statusText}`);
         }
 
-        // Parse JSON từ response
         return await response.json();
-
     } catch (error) {
-
-        // Trường hợp lỗi:
-        // - Backend chưa chạy
-        // - Sai endpoint
-        // - Lỗi server
-        console.warn(`[API] Không thể kết nối backend (${endpoint}). Sử dụng mock data.`, error.message);
-
-        // Trả dữ liệu giả để không crash UI
-        return getMockData(endpoint);
+        console.warn(`[API] Không thể kết nối backend (${normalizedEndpoint}). Dùng mock data.`, error.message);
+        return getMockData(normalizedEndpoint);
     }
 }
 
+/**
+ * Hàm POST chung cho các thao tác như block/unblock.
+ * Dùng để không lặp lại code fetch POST ở từng trang.
+ */
+async function postJson(endpoint, payload = {}) {
+    const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+
+    const response = await fetch(`${API_BASE}${normalizedEndpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `HTTP Error: ${response.status}`);
+    }
+
+    return await response.json();
+}
 
 /**
- * HÀM DỰ PHÒNG: getMockData(endpoint)
- * 
- * Chức năng:
- * Trả dữ liệu giả khi backend không hoạt động,
- * giúp frontend vẫn chạy để test giao diện.
- * 
- * @param {string} endpoint - Endpoint cần giả lập dữ liệu
+ * Dữ liệu giả để test giao diện khi backend chưa chạy.
+ * Mỗi endpoint sẽ trả một giá trị hợp lý để page không báo lỗi.
  */
 function getMockData(endpoint) {
-
-    const now = new Date().toLocaleTimeString();
-
-    // Ví dụ dữ liệu cho endpoint /analyze
     if (endpoint === '/analyze') {
         return {
-            status: "analyzed",
+            status: 'analyzed',
             totalLogs: 0,
             riskAvg: 0
         };
     }
 
-    // Mặc định trả mảng rỗng
+    if (endpoint === '/blocked') {
+        return [];
+    }
+
+    if (endpoint === '/alerts') {
+        return [];
+    }
+
     return [];
 }

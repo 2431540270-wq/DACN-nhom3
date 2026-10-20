@@ -26,43 +26,57 @@
             <h1>Danh sách Cảnh báo bảo mật</h1>
         </header>
 
-        <!-- Card thống kê theo mức độ nghiêm trọng -->
-        <div class="stats-grid" style="margin-bottom: 20px;">
-            <div class="card" style="padding: 15px; border-left: 4px solid var(--critical);">
-                <h3>Critical</h3>
-                <div id="count-critical" class="value" style="font-size: 1.5rem;">0</div>
-            </div>
-            <div class="card" style="padding: 15px; border-left: 4px solid var(--high);">
-                <h3>High</h3>
-                <div id="count-high" class="value" style="font-size: 1.5rem;">0</div>
-            </div>
-            <div class="card" style="padding: 15px; border-left: 4px solid var(--medium);">
-                <h3>Medium</h3>
-                <div id="count-medium" class="value" style="font-size: 1.5rem;">0</div>
-            </div>
-            <div class="card" style="padding: 15px; border-left: 4px solid var(--low);">
-                <h3>Low</h3>
-                <div id="count-low" class="value" style="font-size: 1.5rem;">0</div>
-            </div>
-        </div>
+        <div class="dashboard-shell">
+            <div class="stats-grid alert-summary-grid">
+                <div class="card metric-card danger-card">
+                    <div class="metric-label">Critical</div>
+                    <div id="count-critical" class="value">0</div>
+                    <div class="metric-meta"><span class="trend-danger">Priority</span> cần xử lý ngay</div>
+                </div>
 
-        <!-- Bảng danh sách cảnh báo -->
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Thời Gian</th>
-                        <th>Mức Độ</th>
-                        <th>Loại Tấn Công</th>
-                        <th>IP Nguồn</th>
-                        <th>Mức Độ Nguy Hiểm</th>
-                        <th>Hành Động</th>
-                    </tr>
-                </thead>
-                <tbody id="alerts-list-body">
-                    <!-- Data được render bởi alerts.js -->
-                </tbody>
-            </table>
+                <div class="card metric-card warning-card">
+                    <div class="metric-label">High</div>
+                    <div id="count-high" class="value">0</div>
+                    <div class="metric-meta"><span class="trend-warn">Escalate</span> trong vòng ngắn</div>
+                </div>
+
+                <div class="card metric-card info-card">
+                    <div class="metric-label">Medium</div>
+                    <div id="count-medium" class="value">0</div>
+                    <div class="metric-meta"><span class="trend-info">Monitor</span> liên tục</div>
+                </div>
+
+                <div class="card metric-card">
+                    <div class="metric-label">Low</div>
+                    <div id="count-low" class="value">0</div>
+                    <div class="metric-meta"><span class="trend-up">Log</span> xem xét định kỳ</div>
+                </div>
+            </div>
+
+            <div class="panel alert-panel">
+                <div class="panel-header">
+                    <h3>Danh sách cảnh báo</h3>
+                    <span class="status-badge status-online">Live</span>
+                </div>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Thời Gian</th>
+                                <th>Mức Độ</th>
+                                <th>Loại Tấn Công</th>
+                                <th>IP Nguồn</th>
+                                <th>Mức Độ Nguy Hiểm</th>
+                                <th>Hành Động</th>
+                            </tr>
+                        </thead>
+                        <tbody id="alerts-list-body">
+                            <!-- Data được render bởi alerts.js -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 

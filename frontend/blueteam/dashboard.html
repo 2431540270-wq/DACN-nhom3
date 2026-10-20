@@ -36,43 +36,90 @@
             </div>
         </header>
 
-        <!-- Các card thống kê tổng quan -->
-        <div class="stats-grid">
-            <div class="card">
-                <h3>Tổng Log đã phân tích</h3>
-                <div class="value" id="stat-logs">0</div>
-            </div>
-            <div class="card">
-                <h3>Cảnh báo mới (24h)</h3>
-                <div class="value" id="stat-alerts" style="color: var(--high);">0</div>
-            </div>
-            <div class="card">
-                <h3>IP đã chặn</h3>
-                <div class="value" id="stat-blocked" style="color: var(--critical);">0</div>
-            </div>
-            <div class="card">
-                <h3>Điểm rủi ro AI</h3>
-                <div class="value" id="stat-risk">0.0</div>
-            </div>
-        </div>
+        <div class="dashboard-shell">
+            <!-- Các card thống kê tổng quan -->
+            <div class="stats-grid dashboard-kpis">
+                <div class="card metric-card">
+                    <div class="metric-label">Tổng Log</div>
+                    <div class="value" id="stat-logs">0</div>
+                    <div class="metric-meta"><span class="trend-up">+12%</span> so với hôm qua</div>
+                </div>
 
-        <!-- Bảng hoạt động gần đây (từ alerts) -->
-        <h2>Hoạt động gần đây</h2>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>IP Nguồn</th>
-                        <th>Thời Gian</th>
-                        <th>Loại Tấn Công</th>
-                        <th>Risk Score</th>
-                        <th>Trạng Thái</th>
-                    </tr>
-                </thead>
-                <tbody id="recent-list">
-                    <!-- Data được render bởi dashboard.js -->
-                </tbody>
-            </table>
+                <div class="card metric-card warning-card">
+                    <div class="metric-label">Cảnh báo mới</div>
+                    <div class="value" id="stat-alerts">0</div>
+                    <div class="metric-meta"><span class="trend-warn">24h</span> gần nhất</div>
+                </div>
+
+                <div class="card metric-card danger-card">
+                    <div class="metric-label">IP đã chặn</div>
+                    <div class="value" id="stat-blocked">0</div>
+                    <div class="metric-meta"><span class="trend-danger">Active</span> trên tường lửa</div>
+                </div>
+
+                <div class="card metric-card info-card">
+                    <div class="metric-label">Điểm rủi ro AI</div>
+                    <div class="value" id="stat-risk">0.0</div>
+                    <div class="metric-meta"><span class="trend-info">Avg</span> risk score</div>
+                </div>
+            </div>
+
+            <div class="insights-grid">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>Tình trạng nguy hiểm</h3>
+                    </div>
+                    <div class="severity-stack">
+                        <div class="severity-row critical-row">
+                            <span>Critical</span>
+                            <strong>0</strong>
+                        </div>
+                        <div class="severity-row high-row">
+                            <span>High</span>
+                            <strong>0</strong>
+                        </div>
+                        <div class="severity-row medium-row">
+                            <span>Medium</span>
+                            <strong>0</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>Hành động nhanh</h3>
+                    </div>
+                    <div class="quick-actions">
+                        <a href="alerts.html" class="action-btn">Xem Alerts</a>
+                        <a href="monitor.html" class="action-btn">Live Monitor</a>
+                        <a href="firewall.html" class="action-btn">Quản lý Firewall</a>
+                        <a href="attack-log.html" class="action-btn">Tra cứu Log</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bảng hoạt động gần đây -->
+            <div class="panel recent-panel">
+                <div class="panel-header">
+                    <h3>Hoạt động gần đây</h3>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>IP Nguồn</th>
+                                <th>Thời Gian</th>
+                                <th>Loại Tấn Công</th>
+                                <th>Risk Score</th>
+                                <th>Trạng Thái</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recent-list">
+                            <!-- Data được render bởi dashboard.js -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
