@@ -22,6 +22,8 @@ class RealTimeMonitor(threading.Thread):
         self.alert_system = alert_system
         self.log_dao = LogDAO()
         self.reader = LogReader()
+        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.log_file = os.path.join(backend_dir, "logs", "network.log")
         self.running = True
 
     def run(self):
@@ -33,7 +35,7 @@ class RealTimeMonitor(threading.Thread):
                     logs = self.log_dao.get_all_logs()
                     print(f"[Monitor] Read {len(logs)} log(s) from DATABASE")
                 else:
-                    logs = self.reader.read_log("logs/network.log")
+                    logs = self.reader.read_log(self.log_file)
                     print(f"[Monitor] Read {len(logs)} log(s) from FILE")
 
                 if logs:

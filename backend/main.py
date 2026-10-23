@@ -18,6 +18,9 @@ from services.log_reader import LogReader
 from services.realtime_monitor import RealTimeMonitor
 
 # Shared global instances
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOG_FILE = os.path.join(BASE_DIR, "logs", "network.log")
+
 bot = SecurityBot()
 alert_system = AlertSystem()
 log_dao = LogDAO()
@@ -81,7 +84,7 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
                     logs = log_dao.get_all_logs()
                     print(f"[API /analyze] Source: DATABASE — {len(logs)} row(s)")
                 else:
-                    logs = reader.read_log("logs/network.log")
+                    logs = reader.read_log(LOG_FILE)
                     print(f"[API /analyze] Source: FILE — {len(logs)} row(s)")
 
                 display_total = len(logs)
@@ -115,7 +118,7 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
                     if db_logs:
                         logs_to_send = db_logs
                 if not logs_to_send:
-                    logs_to_send = reader.read_log("logs/network.log")
+                    logs_to_send = reader.read_log(LOG_FILE)
 
                 limit_logs = logs_to_send[:100]
                 resp = [
@@ -370,8 +373,8 @@ class ApiRequestHandler(BaseHTTPRequestHandler):
                     log_dao.insert_log(entry)
                 else:
                     try:
-                        os.makedirs("logs", exist_ok=True)
-                        with open("logs/network.log", "a", encoding="utf-8") as f:
+                        os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+                        with open(LOG_FILE, "a", encoding="utf-8") as f:
                             f.write(f"{now_str} {attacker_ip} REQUEST {payload}\n")
                     except Exception:
                         pass
