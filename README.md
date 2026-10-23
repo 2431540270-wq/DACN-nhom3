@@ -38,8 +38,20 @@ Hệ thống hoạt động theo cơ chế **Hybrid (Luật Heuristic + Mô hìn
 - **Tăng tốc**: Huấn luyện trên GPU Kaggle (`tree_method=gpu_hist`).
 - **Đánh giá**: Accuracy, Macro-F1, Log-Loss, Brier Score, Confusion Matrix.
 
-### Kết quả (sau khi huấn luyện trên Kaggle)
-> Cập nhật file [`backend/models/ai/training_report.json`](backend/models/ai/training_report.json) sau mỗi lần train.
+### Kết quả Thực Nghiệm (Đánh giá trên tập dữ liệu chuẩn)
+Hệ thống được kiểm thử bằng phương pháp **Stratified 4-Fold Cross Validation** trên GPU, tổng hợp từ file [`backend/models/ai/training_report.json`](backend/models/ai/training_report.json):
+
+| Chỉ số đánh giá | Kết quả thực nghiệm | Ý nghĩa |
+|:---|:---|:---|
+| **Độ chính xác trung bình (Accuracy)** | **99.91%** (±0.016%) | Tỷ lệ nhận diện đúng tổng thể trên toàn bộ tập kiểm thử |
+| **Macro-F1 Score** | **99.92%** (±0.015%) | Khả năng phát hiện cân bằng và đồng đều trên cả 4 lớp tấn công |
+| **Log-Loss** | **0.0053** | Mức độ sai lệch xác suất dự đoán cực thấp, mô hình tự tin cao |
+| **Brier Score** | **0.0004** | Độ hiệu chuẩn xác suất (probability calibration) tối ưu |
+| **Tỷ lệ độ tự tin cao (High Confidence)** | **99.79%** | Đa số các mẫu dự đoán đều vượt ngưỡng tự tin 85% |
+| **Độ chính xác nhóm High Confidence** | **99.95%** | Giảm thiểu tối đa tình trạng báo động giả (False Positive) |
+
+*Phân bố mẫu huấn luyện (131.703 luồng)*: `Benign`: 38.034 | `DoS`: 40.000 | `DDoS`: 28.669 | `PortScan`: 25.000.  
+Biểu đồ huấn luyện chi tiết được xuất tự động tại [`backend/models/ai/training_charts.png`](backend/models/ai/training_charts.png).
 
 ---
 
@@ -77,8 +89,9 @@ Hệ thống hoạt động theo cơ chế **Hybrid (Luật Heuristic + Mô hìn
 │   │   ├── ai/                     # Mô hình AI đã huấn luyện
 │   │   │   ├── model_nids_multiclass.json       # XGBoost NIDS 4 lớp
 │   │   │   ├── label_encoder_multiclass.pkl     # Bộ mã hóa nhãn
-│   │   │   ├── feature_importance_nids.csv      # Tầm quan trọng đặc trưng
-│   │   │   └── training_report.json             # Báo cáo kết quả huấn luyện
+│   │   │   ├── training_charts.png              # Biểu đồ đánh giá huấn luyện
+│   │   │   ├── training_report.json             # Báo cáo kết quả huấn luyện
+│   │   │   └── README.txt                       # Hướng dẫn tải artifact AI
 │   │   └── log_entry.py            # Đối tượng LogEntry chuẩn hóa
 │   ├── services/                   # Các tiến trình nền
 │   │   ├── log_analyzer.py         # Thống kê phân tích log
@@ -86,8 +99,8 @@ Hệ thống hoạt động theo cơ chế **Hybrid (Luật Heuristic + Mô hìn
 │   │   └── realtime_monitor.py     # Luồng quét định kỳ (Daemon thread)
 │   ├── main.py                     # Điểm khởi chạy Backend & REST API
 │   ├── requirements.txt            # Danh sách thư viện phụ thuộc
-│   ├── test_ai_inference.py        # Script kiểm thử cũ (tham khảo)
-│   └── test_nids_focused.py        # Script kiểm thử NIDS 4 lớp (mới)
+│   ├── test_ai_quick.py            # Script kiểm thử nhanh AIDetector
+│   └── test_nids_focused.py        # Script kiểm thử NIDS 4 lớp (chuyên sâu)
 │
 ├── dataset/                        # Dữ liệu & Kịch bản huấn luyện AI
 │   ├── merge_datasets.py           # Tiền xử lý, trích xuất 77 đặc trưng luồng
@@ -143,8 +156,8 @@ Sau khi huấn luyện xong trên Kaggle, tải về và đặt vào thư mục 
 backend/models/ai/
 ├── model_nids_multiclass.json        ← Tải từ Kaggle /kaggle/working/
 ├── label_encoder_multiclass.pkl      ← Tải từ Kaggle /kaggle/working/
-├── feature_importance_nids.csv       ← Tải từ Kaggle /kaggle/working/
-└── training_report.json              ← Tải từ Kaggle /kaggle/working/
+├── training_report.json              ← Tải từ Kaggle /kaggle/working/
+└── training_charts.png               ← (Tùy chọn) Tải từ Kaggle /kaggle/working/
 ```
 
 ### 4. Huấn Luyện Mô Hình Trên Kaggle
@@ -157,13 +170,17 @@ backend/models/ai/
    DATA_PATH = "/kaggle/input/<tên-dataset-của-bạn>/merged_cicids_network_flow.parquet"
    ```
 6. Chạy tuần tự từ Cell 1 → Cell 10.
-7. Tải về 4 file từ `/kaggle/working/` (xem Bước 3).
+7. Tải về các file artifact từ `/kaggle/working/` (xem Bước 3).
 
 ### 5. Kiểm Thử Mô Hình AI
 ```powershell
+# Kiểm tra nhanh các hàm suy luận
+py backend/test_ai_quick.py
+
+# Kiểm thử chuyên sâu NIDS 4 lớp với các kịch bản thực tế
 py backend/test_nids_focused.py
 ```
-> Khi thành công, màn hình sẽ hiển thị kết quả 8 test case với bảng phân phối xác suất.
+> Khi thành công, màn hình sẽ hiển thị kết quả 8 test case chi tiết kèm bảng phân phối xác suất và độ tự tin.
 
 ### 6. Khởi Động Máy Chủ Backend
 ```powershell
@@ -202,6 +219,36 @@ Không cần cài đặt thêm web server, mở trực tiếp bằng trình duy�
 | `POST` | `/api/attack/flood` | Giả lập tấn công Request Flood (DoS/DDoS) |
 | `POST` | `/api/block` | Khóa thủ công một địa chỉ IP |
 | `POST` | `/api/unblock` | Mở khóa (Unblock) một địa chỉ IP |
+
+---
+
+## 🔮 Hướng Phát Triển Tương Lai (Future Work & Roadmap)
+
+Để nâng cao khả năng ứng dụng thực tế và hoàn thiện đề tài NCKH, hệ thống định hướng mở rộng với các trọng tâm sau:
+
+### 1. Thu Thập Lưu Lượng Mạng Tự Động Theo Thời Gian Thực (Automated Live Traffic Capture)
+- **Bắt gói tin trực tiếp từ Card Mạng (NIC Sniffing)**:
+  - Tích hợp module lắng nghe lưu lượng mạng trực tiếp từ interface mạng (ví dụ sử dụng `libpcap`, `PyShark`, `Scapy` hoặc `NFStream`).
+  - Hệ thống tự động bắt các gói tin raw (Packet-level) mà không cần nhập dữ liệu thủ công hay phụ thuộc vào file log tạo sẵn.
+- **Trích xuất đặc trưng luồng tự động (Automated Flow Extraction)**:
+  - Gom các gói tin theo phiên kết nối 5-tuple (`Source IP`, `Source Port`, `Destination IP`, `Destination Port`, `Protocol`) thành các luồng mạng hai chiều (Bidirectional Network Flows).
+  - Tự động tính toán tức thời **77 đặc trưng thống kê chuẩn CICFlowMeter** (như thời gian luồng, độ dài gói, khoảng cách giữa các gói - IAT, cờ TCP Flags, kích thước cửa sổ trượt Window Size,...) ngay trên luồng trực tiếp.
+  - Chuyển tiếp ngay vector đặc trưng vào pipeline suy luận của `AIDetector` để cảnh báo và ngăn chặn trong thời gian thực với độ trễ tính bằng mili-giây (sub-second latency).
+
+### 2. Tự Động Huấn Luyện Lại & Thích Ứng (Continuous & Active Learning)
+- **Phát hiện trôi dạt dữ liệu (Concept Drift)**: Giám sát phân phối dữ liệu mạng thực tế để phát hiện khi các biến thể tấn công mới xuất hiện làm suy giảm hiệu suất mô hình.
+- **Cơ chế Active Learning**: Tự động đánh dấu các luồng mạng có độ tự tin trung bình (`confidence < 85%`) hoặc điểm dị biệt cao để đưa vào hàng đợi xác thực của chuyên viên an ninh mạng.
+- **Automated Retraining Pipeline**: Định kỳ tự động chuẩn hóa mẫu mới và tái huấn luyện mô hình XGBoost nhằm nâng cao khả năng phòng thủ trước các mối đe dọa Zero-day.
+
+### 3. Tích Hợp Tường Lửa Hệ Điều Hành & Phần Cứng Mạng (IPS / Active Firewall Enforcement)
+- **Tự động cấu hình Firewall cấp OS**: Mở rộng từ tường lửa ứng dụng (in-app firewall) sang thực thi lệnh chặn trực tiếp trên Tường lửa hệ điều hành:
+  - **Linux**: Cập nhật rule thời gian thực qua `iptables` / `nftables` hoặc `ipset`.
+  - **Windows**: Điều khiển `Windows Defender Firewall with Advanced Security` thông qua PowerShell API.
+- **Hỗ trợ Mạng điều khiển bằng phần mềm (SDN/OpenFlow)**: Gửi lệnh điều khiển tới thiết bị Switch/Router để cô lập IP tấn công từ lớp mạng biên (Edge/Switch level).
+
+### 4. Mở Rộng Phạm Vi Mối Đe Dọa & Tích Hợp SIEM/SOC
+- Mở rộng tập dữ liệu và mô hình AI để nhận diện thêm các họ tấn công phức tạp khác như: **Botnet (Mirai, Ares)**, **Web Attack (SQL Injection, XSS, Path Traversal)**, và **Infiltration/Ransomware C2**.
+- Xuất log cảnh báo theo định dạng chuẩn quốc tế (Syslog, CEF - Common Event Format, JSON streaming) để dễ dàng tích hợp vào các nền tảng SIEM/SOC phổ biến trong doanh nghiệp như **Wazuh, Splunk, Elastic SIEM**.
 
 ---
 
