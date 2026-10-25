@@ -22,6 +22,15 @@ try:
 except ImportError:
     XGB_AVAILABLE = False
 
+try:
+    # pyrefly: ignore[missing-import]
+    import torch
+    # pyrefly: ignore[missing-import]
+    import torch.nn as nn
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+
 
 FEATURE_COLS = [
     "Protocol",
@@ -58,11 +67,68 @@ FEATURE_COLS = [
 ]
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Deep Neural Network Architecture (phải giống hệt file train)
+# ─────────────────────────────────────────────────────────────────────────────
+if TORCH_AVAILABLE:
+    class ResidualBlock(nn.Module):
+        """Residual Block với BatchNorm và GELU activation."""
+        def __init__(self, dim, dropout=0.3):
+            super().__init__()
+            self.block = nn.Sequential(
+                nn.Linear(dim, dim),
+                nn.BatchNorm1d(dim),
+                nn.GELU(),
+                nn.Dropout(dropout),
+                nn.Linear(dim, dim),
+                nn.BatchNorm1d(dim),
+            )
+            self.act = nn.GELU()
+            self.dropout = nn.Dropout(dropout)
+
+        def forward(self, x):
+            return self.dropout(self.act(self.block(x) + x))
+
+    class NIDSDeepNet(nn.Module):
+        """
+        Deep Neural Network cho Network Intrusion Detection.
+        Kiến trúc: Input → 4 Residual Blocks → Feature Squeeze → Classification
+        """
+        def __init__(self, input_dim=77, num_classes=4, hidden_dim=512, n_blocks=4, dropout=0.3):
+            super().__init__()
+            self.input_proj = nn.Sequential(
+                nn.Linear(input_dim, hidden_dim),
+                nn.BatchNorm1d(hidden_dim),
+                nn.GELU(),
+                nn.Dropout(dropout * 0.5),
+            )
+            self.res_blocks = nn.Sequential(
+                *[ResidualBlock(hidden_dim, dropout) for _ in range(n_blocks)]
+            )
+            self.squeeze = nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim // 2),
+                nn.BatchNorm1d(hidden_dim // 2),
+                nn.GELU(),
+                nn.Dropout(dropout),
+                nn.Linear(hidden_dim // 2, hidden_dim // 4),
+                nn.BatchNorm1d(hidden_dim // 4),
+                nn.GELU(),
+                nn.Dropout(dropout * 0.5),
+            )
+            self.classifier = nn.Linear(hidden_dim // 4, num_classes)
+
+        def forward(self, x):
+            x = self.input_proj(x)
+            x = self.res_blocks(x)
+            x = self.squeeze(x)
+            return self.classifier(x)
+
+
 class AIDetector:
     """
     AIDetector — Động cơ AI phát hiện xâm nhập mạng (NIDS)
     Được huấn luyện trên Kaggle với dữ liệu CICIDS2017/2018
-    sử dụng kỹ thuật 4-Fold Stratified Cross Validation với XGBoost (GPU).
+    sử dụng kiến trúc Hybrid Ensemble: XGBoost + Deep Neural Network (DNN).
 
     Tập trung vào 4 nhóm mối đe dọa mạng chính:
         - Benign    : Lưu lượng mạng bình thường, an toàn.
@@ -70,9 +136,13 @@ class AIDetector:
         - DDoS      : Tấn công từ chối dịch vụ phân tán (LOIC, HOIC, DNS Flood...).
         - PortScan  : Dò quét cổng dịch vụ (nmap, masscan...).
 
-    Bao gồm 1 mô hình:
+    Bao gồm 2 mô hình kết hợp Ensemble:
         XGBoost Multiclass (model_nids_multiclass.json):
-            Phân loại trực tiếp thành 4 nhóm với xác suất từng lớp (soft-prob).
+            Gradient Boosted Trees — mạnh với tabular data.
+        Deep Neural Network (model_nids_dnn.pt):
+            Mạng Fully-Connected sâu với Residual Blocks, BatchNorm, GELU.
+        Ensemble:
+            Trung bình xác suất có trọng số từ cả 2 model.
             Ngưỡng độ tự tin: >= 0.85 → "Rất tự tin", < 0.85 → "Nghi vấn".
     """
 
@@ -97,6 +167,17 @@ class AIDetector:
 
         # NIDS Multiclass model (XGBoost) — nhận diện 4 lớp tấn công mạng
         self.model_multiclass: Optional[xgb.Booster] = None
+
+        # NIDS Deep Neural Network (PyTorch)
+        self.model_dnn = None
+        self.dnn_device = None
+
+        # StandardScaler cho DNN (cần scale input trước khi đưa vào DNN)
+        self.scaler = None
+
+        # Trọng số Ensemble
+        self.ensemble_w_xgb = 0.55
+        self.ensemble_w_dnn = 0.45
 
         # Label encoder — ánh xạ số nguyên sang tên nhãn (Benign, DoS, DDoS, PortScan)
         self.label_encoder = None
@@ -141,9 +222,52 @@ class AIDetector:
             else:
                 print(f"[AIDetector] ⚠️ Không tìm thấy file: {multi_path}")
 
+            # 3. Nạp StandardScaler (cho DNN)
+            scaler_path = os.path.join(self.model_dir, "standard_scaler.pkl")
+            if os.path.exists(scaler_path):
+                with open(scaler_path, "rb") as f:
+                    self.scaler = pickle.load(f)
+                print("[AIDetector] ✅ Nạp standard_scaler.pkl thành công!")
+            else:
+                print(f"[AIDetector] ⚠️ Không tìm thấy file: {scaler_path}")
+
+            # 4. Nạp DNN model (PyTorch)
+            dnn_path = os.path.join(self.model_dir, "model_nids_dnn.pt")
+            if os.path.exists(dnn_path) and TORCH_AVAILABLE:
+                # Chọn device: GPU nếu có, không thì CPU
+                self.dnn_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+                checkpoint = torch.load(dnn_path, map_location=self.dnn_device, weights_only=False)
+                arch = checkpoint.get('architecture', {})
+
+                self.model_dnn = NIDSDeepNet(
+                    input_dim=arch.get('input_dim', 77),
+                    num_classes=arch.get('num_classes', 4),
+                    hidden_dim=arch.get('hidden_dim', 512),
+                    n_blocks=arch.get('n_blocks', 4),
+                    dropout=arch.get('dropout', 0.3),
+                )
+                self.model_dnn.load_state_dict(checkpoint['model_state_dict'])
+                self.model_dnn.to(self.dnn_device)
+                self.model_dnn.eval()
+
+                # Đọc trọng số ensemble từ checkpoint
+                ew = checkpoint.get('ensemble_weights', {})
+                self.ensemble_w_xgb = ew.get('xgboost', 0.55)
+                self.ensemble_w_dnn = ew.get('dnn', 0.45)
+
+                print(f"[AIDetector] ✅ Nạp model_nids_dnn.pt thành công! Device: {self.dnn_device}")
+                print(f"[AIDetector]    Ensemble weights: XGB={self.ensemble_w_xgb}, DNN={self.ensemble_w_dnn}")
+            elif not TORCH_AVAILABLE:
+                print("[AIDetector] ⚠️ PyTorch chưa được cài. DNN sẽ không khả dụng, chỉ dùng XGBoost.")
+            else:
+                print(f"[AIDetector] ⚠️ Không tìm thấy file: {dnn_path}")
+
             self.is_loaded = self.model_multiclass is not None
             if self.is_loaded:
-                print("[AIDetector] ✅ Hệ thống NIDS sẵn sàng. Các lớp nhận diện:", self.nids_classes)
+                mode = "Hybrid Ensemble (XGB+DNN)" if self.model_dnn else "XGBoost Only"
+                print(f"[AIDetector] ✅ Hệ thống NIDS sẵn sàng [{mode}]. "
+                      f"Các lớp nhận diện: {self.nids_classes}")
             else:
                 print("[AIDetector] ⚠️ Không có mô hình nào được nạp thành công.")
 
@@ -157,6 +281,8 @@ class AIDetector:
     def predict_flow(self, features: Union[List[float], np.ndarray, Dict[str, float]]) -> Dict[str, Any]:
         """
         Dự đoán loại lưu lượng mạng dựa trên 77 đặc trưng CICFlowMeter.
+        Sử dụng Hybrid Ensemble: XGBoost + DNN nếu cả 2 model có sẵn,
+        hoặc fallback về XGBoost-only nếu DNN không khả dụng.
 
         Args:
             features: Danh sách / ndarray / dict gồm 77 đặc trưng số của luồng mạng.
@@ -169,6 +295,7 @@ class AIDetector:
                 - confidence_level(str)   : "HIGH" (>= 0.85) hoặc "MEDIUM" (< 0.85).
                 - risk_score      (int)   : Điểm rủi ro 0 – 100.
                 - probabilities   (dict)  : Phân phối xác suất toàn bộ 4 lớp.
+                - model_used      (str)   : "ensemble" hoặc "xgboost_only".
                 - status          (str)   : "OK" hoặc thông báo lỗi.
         """
         if not XGB_AVAILABLE or self.model_multiclass is None:
@@ -179,6 +306,7 @@ class AIDetector:
                 "confidence_level": "UNKNOWN",
                 "risk_score": 0,
                 "probabilities": {},
+                "model_used": "none",
                 "status": "MODEL_NOT_READY"
             }
 
@@ -197,14 +325,37 @@ class AIDetector:
             # Thay thế giá trị vô cực hoặc NaN bằng 0 / giá trị an toàn
             arr = np.nan_to_num(arr, nan=0.0, posinf=1e9, neginf=-1e9)
 
+            # ── XGBoost prediction ───────────────────────────────────────
             dmat = xgb.DMatrix(arr)
+            xgb_probs = self.model_multiclass.predict(dmat)[0]  # shape (4,)
 
-            # Dự đoán xác suất 4 lớp (multi:softprob)
-            raw_probs = self.model_multiclass.predict(dmat)  # shape (1, 4)
-            probs = raw_probs[0]                             # shape (4,)
+            # ── DNN prediction (nếu có) ──────────────────────────────────
+            model_used = "xgboost_only"
+            final_probs = xgb_probs
 
-            pred_idx = int(np.argmax(probs))
-            confidence = float(probs[pred_idx])
+            if self.model_dnn is not None and self.scaler is not None and TORCH_AVAILABLE:
+                try:
+                    # Scale input cho DNN
+                    arr_scaled = self.scaler.transform(arr).astype(np.float32)
+                    x_tensor = torch.FloatTensor(arr_scaled).to(self.dnn_device)
+
+                    self.model_dnn.eval()
+                    with torch.no_grad():
+                        dnn_logits = self.model_dnn(x_tensor)
+                        dnn_probs = torch.softmax(dnn_logits, dim=-1).cpu().numpy()[0]
+
+                    # Ensemble: trung bình có trọng số
+                    final_probs = (self.ensemble_w_xgb * xgb_probs +
+                                   self.ensemble_w_dnn * dnn_probs)
+                    model_used = "ensemble"
+                except Exception as e:
+                    # Fallback về XGBoost nếu DNN lỗi
+                    print(f"[AIDetector] ⚠️ DNN inference lỗi, fallback XGBoost: {e}")
+                    final_probs = xgb_probs
+                    model_used = "xgboost_only"
+
+            pred_idx = int(np.argmax(final_probs))
+            confidence = float(final_probs[pred_idx])
 
             # Ánh xạ index → tên nhãn
             if self.label_encoder and hasattr(self.label_encoder, "classes_"):
@@ -221,7 +372,7 @@ class AIDetector:
             if self.nids_classes:
                 prob_dict = {
                     cls: round(float(p), 4)
-                    for cls, p in zip(self.nids_classes, probs)
+                    for cls, p in zip(self.nids_classes, final_probs)
                 }
 
             # Mức độ tự tin
@@ -239,6 +390,7 @@ class AIDetector:
                 "confidence_level": confidence_level,
                 "risk_score": risk_score,
                 "probabilities": prob_dict,
+                "model_used": model_used,
                 "status": "OK"
             }
 
@@ -251,6 +403,7 @@ class AIDetector:
                 "confidence_level": "UNKNOWN",
                 "risk_score": 0,
                 "probabilities": {},
+                "model_used": "error",
                 "status": f"ERROR: {str(e)}"
             }
 
@@ -351,15 +504,29 @@ class AIDetector:
     # ─────────────────────────────────────────────────────────────────────────
     def get_status(self) -> Dict[str, Any]:
         """Lấy thông tin trạng thái các model đang hoạt động"""
+        mode = "Hybrid Ensemble (XGBoost + DNN)"
+        if self.model_dnn is None:
+            mode = "XGBoost Only"
+        if self.model_multiclass is None:
+            mode = "Not Loaded"
+
         return {
             "loaded": self.is_loaded,
             "model_dir": self.model_dir,
             "focus": "NIDS — DoS / DDoS / PortScan Detection",
+            "inference_mode": mode,
             "models": {
-                "nids_multiclass": self.model_multiclass is not None,
+                "nids_xgboost": self.model_multiclass is not None,
+                "nids_dnn": self.model_dnn is not None,
+                "standard_scaler": self.scaler is not None,
                 "label_encoder": self.label_encoder is not None,
+            },
+            "ensemble_weights": {
+                "xgboost": self.ensemble_w_xgb,
+                "dnn": self.ensemble_w_dnn,
             },
             "nids_classes": self.nids_classes,
             "confidence_threshold": 0.85,
+            "dnn_device": str(self.dnn_device) if self.dnn_device else None,
             "error": self.load_error
         }
